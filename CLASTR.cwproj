@@ -38,6 +38,9 @@
     <Compile Include="CLASTR.clw" />
     <None Include="CLASTR.exp" />
   </ItemGroup>
+  <ItemGroup>
+    <Library Include="CLASTR.Version" />
+  </ItemGroup>
   <Import Project="$(ClarionBinPath)\SoftVelocity.Build.Clarion.targets" />
   <PropertyGroup>
     <PreBuildEvent>"$(MSBuildProjectDirectory)\ExportStr.Bat"</PreBuildEvent>

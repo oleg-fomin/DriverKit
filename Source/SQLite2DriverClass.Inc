@@ -225,9 +225,10 @@ ExplainStart                Procedure(),String,Derived
 _ExecuteSql                 Procedure(),Long,Derived
 _ExecuteSqlNoParms          Procedure(iResultSet pResult),Long,Derived   ! no prepare, or bind parms
 _ExecuteSqlToRecord         Procedure(),Long,Proc,Derived
-_ExecuteSql                 Procedure(StringTheory pSQL, <? pParm1>,<? pParm2>,<? pParm3>,<? pParm4>,<? pParm5>,<? pParm6>,<? pParm7>,<? pParm8>,<? pParm9>,<? pParm10>,<? pParm11>,<? pParm12>,<? pParm13>,<? pParm14>,<? pParm15>,<? pParm16>,<? pParm17>,<? pParm18>,<? pParm19>,<? pParm20>),Long,Derived
+_ExecuteSql                 Procedure(StringTheory pSQL, iResultSet pResult, <? pParm1>,<? pParm2>,<? pParm3>,<? pParm4>,<? pParm5>,<? pParm6>,<? pParm7>,<? pParm8>,<? pParm9>,<? pParm10>,<? pParm11>,<? pParm12>,<? pParm13>,<? pParm14>,<? pParm15>,<? pParm16>,<? pParm17>,<? pParm18>,<? pParm19>,<? pParm20>),Long,Derived
 _ExecuteSqlToRecord         Procedure(Long pStmt,Long pWhichBuffer,Byte pErrIfNoRecord,Long pOpCode),Long,Proc,Virtual
 _ExecuteSqlToResults        Procedure(Long pStmt,iResultSet pResult),Virtual
+_ExecuteSqlToValue          Procedure(*Cstring pAns),Long,Derived
 
 _ExecuteSql                 Procedure(Long pStmt),Long,Virtual
 _ExecuteSqlWork             Procedure(Long pStmt),Long,Virtual

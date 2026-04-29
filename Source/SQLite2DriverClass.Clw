@@ -871,10 +871,7 @@ mode    string(20)
       self.SqlCode.SetValue('PRAGMA ' & sub(pOption,9,len(clip(pOption))))
       If pValue <> '' then self.SqlCode.Append('=' & clip(pValue)).
       self.SqlCode.Append(';')
-      If self._ExecuteSql() = Driver:ok
-        If self.Result.Rows()
-          ans = self.Result.GetCell(1,1)
-        End
+      If self._ExecuteSqlToValue(ans)
       End
       If self._logOptions then self.Log('[OPTN]' & clip(pOption) & '=[' & clip(pValue & ']')).
       Return ans
@@ -1006,6 +1003,43 @@ totalchanged  long,auto
   Return
 
 !-----------------------------------------------------------------
+DriverFileSQLite2Class._ExecuteSqlToValue procedure(*Cstring pAns)
+Stmt      long,auto
+result    long,auto
+dbAddress long,auto
+dbLength  long,auto
+tail      long
+  code
+  pAns = ''
+  If self.CheckConnect() = driver:notok then Return driver:notok.
+  If self._logSQL then self.Log('[SQL ]' & self.SqlCode.GetValue()).
+  result = sqlite3_prepare_v2(self.dbHandle, self.SqlCode.GetAddress(),self.SqlCode.Length(), Stmt, tail)
+  If result <> SQLITE_OK
+    self.SetErrorSqlite(result,'[d070]')
+    self.SetError(FileSystemErr)
+    Return driver:notok
+  End
+  result = sqlite3_step(Stmt)
+  case result
+  of SQLITE_ROW
+    dbAddress = sqlite3_column_text(Stmt, 0)
+    dbLength = sqlite3_column_bytes(Stmt,0)
+    If dbAddress <> 0
+      if dbLength > size(pAns)-1 then dbLength = size(pAns)-1.
+      MemCpy(address(pAns), dbAddress, dbLength)
+    End
+
+  of SQLITE_DONE
+    ! no rows - pAns already blank
+  else
+    self.SetErrorSQLite(result,'[d070]')
+    result = sqlite3_finalize(Stmt)
+    Return driver:notok
+  End
+  result = sqlite3_finalize(Stmt)
+  Return driver:ok
+
+!-----------------------------------------------------------------
 ! prepares and executes the SQL in SqlCode.
 DriverFileSQLite2Class._executeSql procedure()
 stmt    Long ,Auto
@@ -1028,7 +1062,7 @@ stmt    Long ,Auto
   If self.CheckConnect() = driver:notok then Return driver:notok.
   stmt = self._Prepare()
   If stmt
-    self._ExecuteSqlToResults(stmt,self.result)
+    self._ExecuteSqlToResults(stmt,pResult)
   Else
     Return Driver:notok
   End
@@ -1067,7 +1101,7 @@ result  Long,Auto
 !-----------------------------------------------------------------
 ! does a parameterized request, with up to 20 parameters
 ! returns driver:notok if the SQL part is faulty
-DriverFileSQLite2Class._ExecuteSql     Procedure(StringTheory pSQL, <? pParm1>,<? pParm2>,<? pParm3>,<? pParm4>,<? pParm5>,<? pParm6>,<? pParm7>,<? pParm8>,<? pParm9>,<? pParm10>,<? pParm11>,<? pParm12>,<? pParm13>,<? pParm14>,<? pParm15>,<? pParm16>,<? pParm17>,<? pParm18>,<? pParm19>,<? pParm20>)
+DriverFileSQLite2Class._ExecuteSql     Procedure(StringTheory pSQL, iResultSet pResult, <? pParm1>,<? pParm2>,<? pParm3>,<? pParm4>,<? pParm5>,<? pParm6>,<? pParm7>,<? pParm8>,<? pParm9>,<? pParm10>,<? pParm11>,<? pParm12>,<? pParm13>,<? pParm14>,<? pParm15>,<? pParm16>,<? pParm17>,<? pParm18>,<? pParm19>,<? pParm20>)
 stmt    long
 result  long
 len     long
@@ -1078,6 +1112,9 @@ rl     real
   code
   If self.CheckConnect() = driver:notok then Return driver:notok.
   self.SqlCode.SetValue(pSql)
+  If omitted(pParm1)
+    Return self._ExecuteSqlNoParms(pResult)
+  End
   stmt = self._Prepare()
   If stmt
 
@@ -1103,7 +1140,7 @@ rl     real
     If not omitted(pParm19) then parm = pParm19 ; do BindParm.
     If not omitted(pParm20) then parm = pParm20 ; do BindParm.
     !self.NewResultSet(driver:DontFreeRam)
-    self._ExecuteSqlToResults(stmt,self.result)
+    self._ExecuteSqlToResults(stmt,pResult)
     result = sqlite3_finalize(stmt)
     self._ClearParameterQueue(self._ParameterOpcode)
     self.SetErrorSqlite(result,'[p015]')
@@ -1219,12 +1256,12 @@ tail          long
 ! This method takes the step of displaying a message, because a database with too low a version
 ! is not good.
 DriverFileSQLite2Class._GetDBVersion   Procedure
+ans   cstring(255)
   Code
   If self.GetProp:DBMSVer() = ''
     self.SqlCode.SetValue('select sqlite_version();')
-    self._ParameterOpcode = 0
-    If self._ExecuteSql() = Driver:ok and self.result.Rows()
-      self._ParseVersionDb(self.Result.GetCell(1,1))
+    If self._ExecuteSqlToValue(ans) = driver:ok
+      self._ParseVersionDb(ans)
       If self.CheckVersionDb(SQLite_Major_Required, SQLite_Minor_Required,SQLite_Build_Required) <> driver:ok
         self.trace('Database Version : ' & self.DBVersionMajor & '.' & self.DBVersionMinor & '.' & self.DBVersionBuild  & ' Too Old. Need ' & SQLite_Major_Required & '.' & SQLite_Minor_Required & '.' & SQLite_Build_Required & ' or later.')
         self.BugAlert('[' & self.GetPROP:Driver() & '] ' & self.GetPROP:Database() & ' Database Version : ' & self.DBVersionMajor & '.' & self.DBVersionMinor & '.' & self.DBVersionBuild  & ' Too Old. Need ' & SQLite_Major_Required & '.' & SQLite_Minor_Required & '.' & SQLite_Build_Required & ' or later.')
@@ -1236,25 +1273,21 @@ DriverFileSQLite2Class._GetDBVersion   Procedure
 !-----------------------------------------------------------------
 ! this is used to set non-persistent PRAGMAS to take affect after the connection is opened.
 DriverFileSQLite2Class._SetDefaultPragmas   Procedure()
-journal_mode  String(20)
+ans           CString(255),Auto
   code
   self.SqlCode.SetValue('PRAGMA journal_mode;')
-  self._ParameterOpcode = 0
-  If self._ExecuteSql() = Driver:ok and self.result.Rows()
-    journal_mode = self.Result.GetCell(1,1)
-    case lower(journal_mode)
+  If self._ExecuteSqlToValue(ans) = driver:ok
+    case lower(ans)
     of 'wal'
       self.SqlCode.SetValue('PRAGMA syncronous=NORMAL;')
-      If self._ExecuteSql() = Driver:ok
+      If self._ExecuteSqlToValue(ans) = driver:ok
       End
       ! so mmap_size allows for memory mapped files, but it gets allocated on a per-connection basis - meaning per thread.
       ! so not sure if performance gain is worth the memory cost - especially in highly threaded applications.
       !self.SqlCode.SetValue('PRAGMA mmap_size=10485760')  ! 10 megs. Makes performance on small files very fast.
-      !If self._ExecuteSql() = Driver:ok
-      !End
     End
   End
-
+  Return
 
 !-----------------------------------------------------------------
 DriverFileSQLite2Class._GenParm                PROCEDURE(Long pCount)
@@ -2892,14 +2925,14 @@ cmd         StringTheory
   cstr = self._sanitize(pNewTableName,driver:sqlTable)
   self.SqlCode.SetValue('DROP TABLE IF EXISTS ' & cstr & ';')
   cmd.append(self.SqlCode,,'<13,10>')
-  If self._executeSql(self.SqlCode) = driver:ok     ! deliberatly go to the non-bindparameters version of the method.
+  If self._ExecuteSqlNoParms() = driver:ok
     ! table does not exist, will create table
     self.SqlCode.setvalue('SELECT sql FROM sqlite_master WHERE type= ''table'' AND name = ''' & self._sanitize(self.FullPathName,driver:sqlTable) & ''';' )
-    If self._executeSql(self.SqlCode) = driver:ok    ! deliberatly go to the non-bindparameters version of the method.
+      If self._ExecuteSqlNoParms() = driver:ok
       If self.result.Rows()
         self.SqlCode.setvalue(self.result.GetCell(1,1) & ';')
         self.SqlCode.replace(clip(self.FullPathName),cstr,1,1,0,false)
-        If self._executeSql(self.SqlCode) = driver:ok     ! deliberatly go to the non-bindparameters version of the method.
+        If self._ExecuteSqlNoParms() = driver:ok
           cmd.append(self.SqlCode,,'<13,10>')
           ! table is now created, so copy data across
           self.SqlCode.setvalue('INSERT INTO ' & cstr & ' (' & fieldlist.GetValue() & ') SELECT ' & fieldlist.GetValue() & ' FROM ' & self._sanitize(self.FullPathName,driver:sqlTable) & ' ' & self._GetAlias(driver:nodot) )
@@ -3367,6 +3400,7 @@ AllSql  StringTheory
 ! check to see if a table exists in the database
 DriverFileSQLite2Class.EXISTS           PROCEDURE(String pTablename)     ! new command
 tablename   cstring(255),Auto
+ans         cstring(255),Auto
 poc         Long,Auto
   Code
   If self.CheckConnect() = Driver:notok     ! File can be OPEN. If closed a new connection is established.
@@ -3382,18 +3416,12 @@ poc         Long,Auto
     Return false
   End
   Self.SetError(NoError)
-  poc = self._ParameterOpcode
-  self._ParameterOpcode = 0
   self.SqlCode.SetValue('SELECT name FROM sqlite_master WHERE type= ''table'' AND name = ''' & tablename & ''' COLLATE NOCASE;' )
-  If self._executeSql() = driver:ok
-    self._ParameterOpcode = poc
-    If self.result.Rows()
-      If lower(self.result.GetCell(1,1)) = lower(tablename)
-        Return true
-      End
+  If self._ExecuteSqlToValue(ans) = driver:ok
+    If Ans <> ''
+      Return true
     End
   End
-  self._ParameterOpcode = poc
   Return false
 
 !-----------------------------------------------------------------
@@ -3419,7 +3447,8 @@ DriverFileSQLite2Class.RESUMERELATIONS           PROCEDURE()
 ! FLUSH? will return the system to the state it was before the STREAM
 ! consider also using SUSPENDRELATIONS for even faster performance.
 DriverFileSQLite2Class.STREAM           PROCEDURE()
-cmd  StringTheory
+cmd   StringTheory
+ans   Cstring(255),Auto
   Code
   parent.Stream()
   If Errorcode() then Return.
@@ -3429,8 +3458,8 @@ cmd  StringTheory
     self._ParameterOpcode = Opcode:NONE
     ! synchronous
     self.SqlCode.SetValue('PRAGMA synchronous;')
-    If self._ExecuteSql() = Driver:ok
-      self._SynchronousAtStream = self.result.GetCell(1,1)
+    If self._ExecuteSqlToValue(ans) = driver:ok
+      self._SynchronousAtStream = ans
     Else
       self._SynchronousAtStream = 2
     End
@@ -3438,31 +3467,30 @@ cmd  StringTheory
       self._SynchronousAtStream = -1
     Else
       self.SqlCode.SetValue('PRAGMA synchronous=OFF;')
-      If self._ExecuteSql() = Driver:ok
-      end
+      If self._ExecuteSqlToValue(ans) = driver:ok
+      End
       cmd.append(self.sqlcode,,'<13,10>')
     End
     !cache_size
     self.SqlCode.SetValue('PRAGMA cache_size ;')
-    If self._ExecuteSql() = Driver:ok
-      self._CacheSizeAtStream = self.result.GetCell(1,1)
+    If self._ExecuteSqlToValue(ans) = driver:ok
+      self._CacheSizeAtStream = ans
     Else
       self._CacheSizeAtStream = -2000
     End
     if self._CacheSizeAtStream > 0 then self._CacheSizeAtStream = (self._CacheSizeAtStream / 1024) * -1.
     if self._CacheSizeAtStream > -20000
       self.SqlCode.SetValue('PRAGMA cache_size=-20000;')
-      If self._ExecuteSql() = Driver:ok
-      end
-      cmd.append(self.sqlcode,,'<13,10>')
+      If self._ExecuteSqlToValue(ans) = driver:ok
+      End
+      cmd.Append(self.sqlcode,,'<13,10>')
     end
     ! begin transaction
-    self._ParameterOpcode = Opcode:NONE
     self.SqlCode.SetValue('BEGIN;')
-    If self._ExecuteSql() = Driver:ok
+    If self._ExecuteSqlToValue(ans) = driver:ok
       self._inStream = true
     End
-    cmd.append(self.sqlcode,,'<13,10>')
+    cmd.Append(self.sqlcode,,'<13,10>')
   End
   self.SqlCode.SetValue(cmd)
   Return

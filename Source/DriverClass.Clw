@@ -1888,7 +1888,7 @@ DriverBaseClass.ParseProperty             Procedure(*Cstring pProperty, Long pCo
 x            Long,Auto
   code
   rTokenString.SetValue('')
-  !self.trace('DriverBaseClass.ParseProperty ' & pProperty & ' pContext=' & pContext)
+  !self.trace('xxx DriverBaseClass.ParseProperty [' & pProperty & ']  pContext=' & pContext)
   self._ParseContext = pContext
   If pProperty = '' then Return driver:ok.
   self.SetError(NoError)
@@ -1906,7 +1906,9 @@ x            Long,Auto
     Free(self.ExpressionQueue)
   End
   rTokenString.SetValue(self._Tokenize(pProperty,pContext))
-  If ErrorCode() then Return driver:notok.
+  If ErrorCode()
+    Return driver:notok
+  End
   Loop x = 1 to Records(self.ExpressionQueue)
     get(self.ExpressionQueue,x)
     self.tempstr.SetValue(self.ExpressionQueue.Expression)
@@ -1915,7 +1917,9 @@ x            Long,Auto
       self.ExpressionQueue.Expression = self.tempstr.GetValue()
       Put(self.ExpressionQueue)
     Else
-      If Errorcode() then Return driver:notok.
+      If Errorcode()
+        Return driver:notok
+      End
     End
   End
   ! operator translations work directly on the token string.
@@ -1934,7 +1938,6 @@ x            Long,Auto
      self.TranslateOrder(rTokenString)
   End
 
-  !self._ViewTokens()
   Return driver:ok
 
 !-----------------------------------------------------------------
@@ -1992,16 +1995,17 @@ x  long,Auto
 ! extract function calls and replace with           token:function & 0000. Push that to function queue
 ! extract math and string operators and replace with token:operator & 0000. Push that to Operator queue
 DriverBaseClass._Tokenize   Procedure(String pStr, Long pContext)
-x            long,Auto
-y            long,Auto
-z            long
-a            long
-p            long
-as           long
-len          long,Auto
-inquote      byte
-tokenString  cString(4096)         !!!todo think about replacing this with variable length
-tempstring   cstring(4096)
+x             Long,Auto
+y             Long,Auto
+z             Long
+a             Long
+p             Long
+as            Long
+len           Long,Auto
+inquote       Byte
+tokenString   cString(8192)         !!!todo think about replacing this with variable length
+tempstring    cstring(8192)
+HoldDirection Cstring(2)
   code
   !self.trace('  Tokenize ' & pStr)
   x = 1
@@ -2020,17 +2024,21 @@ tempstring   cstring(4096)
       Cycle
 
     of '+'
-      !If Band(self._ParseContext,driver:append) and x = 1    ! ignore first + if the context is set to append
       If Band(pContext,driver:append) and x = 1    ! ignore first + if the context is set to append
         x += 1
-        Cycle
       Else
         do PushOperator
-        Cycle
       End
+      Cycle
+
+    of '-'
+      do PushOperator
+      Cycle
+
     of ','
       do PushOperator
       Cycle
+
     of '&'
       case pContext
       of driver:searchfilter
@@ -2044,7 +2052,7 @@ tempstring   cstring(4096)
         Cycle
       End
 
-    of '-' orof '/' orof '*' orof '%' orof '^'      ! term separators
+    of '/' orof '*' orof '%' orof '^'      ! term separators
       do PushOperator
       Cycle
 
@@ -2388,6 +2396,13 @@ PushLabel  routine
   Else
     Add(self.LabelQueue)
     tokenString = tokenString & token:label & format(records(self.LabelQueue),@n04) & ' '
+    case HoldDirection
+    of '+'
+      do PushOperatorAsc
+    of '-'
+      do PushOperatorDesc
+    End
+    HoldDirection = ''
   End
   x = y
 
@@ -2708,13 +2723,13 @@ Clause     cstring(255),Auto
   code
   x = 1
   start = 1
-  Loop                                      ! loop through each clause
-    x = pStr.Instring(token:comma,1,x)
+  Loop                                              ! loop through each clause
+    x = pStr.Instring(token:comma,1,x)              ! find the end of the clause
     If x
-      clause = pStr.Sub(start,x-1)
+      clause = pStr.Slice(start,x-1)                ! found a comma, so get tokens between start and that comma
       start = x + 6
     Else
-      clause = pStr.Slice(start)
+      clause = pStr.Slice(start)                    ! no more commas, so get the rest of the expression
     End
     Case len(clause)
     of 0
@@ -2731,7 +2746,7 @@ Clause     cstring(255),Auto
         End
       ElsIf t1[1] = token:label
         If t2 <> token:desc and t2 <> token:asc
-          clause = t1 !& token:asc & t2           ! t2 is either blank, or this order is likely invalid. Not aware of anything that can legally follow a label in a 2 token clause.
+          clause = t1                                ! t2 is either blank, or this order is likely invalid. Not aware of anything that can legally follow a label in a 2 token clause.
         End
       Else
         ! leave Clause as is
@@ -3843,7 +3858,6 @@ DriverBaseClass.ClearProps            PROCEDURE()
   self.SetProp:Where('')
   self.SetProp:WherePage('')
   self.ProjectList.SetValue('')
-  !self._HasBeenSet = False
   self._FreeSubset()
 
   self.SetProp:Separator(',')
@@ -4871,10 +4885,6 @@ DriverBaseClass.DoProp:Sql            PROCEDURE()
   Return
 
 ExecuteSql  routine
-  ! There may or may not have been a SET. If not there's some housekeeping to do
-  If self._HasBeenSet = false
-  End
-  !
   self._justSet = false
   self.Paging = false
   self._ResultSetDirection = Opcode:NEXT
@@ -4899,13 +4909,19 @@ DriverBaseClass.SetProp:TimePicture         PROCEDURE(String pValue)
 
 !-----------------------------------------------------------------
 !!!Derive
-DriverBaseClass._ExecuteSql            PROCEDURE(StringTheory pSQL, <? pParm1>,<? pParm2>,<? pParm3>,<? pParm4>,<? pParm5>,<? pParm6>,<? pParm7>,<? pParm8>,<? pParm9>,<? pParm10>,<? pParm11>,<? pParm12>,<? pParm13>,<? pParm14>,<? pParm15>,<? pParm16>,<? pParm17>,<? pParm18>,<? pParm19>,<? pParm20>)
+DriverBaseClass._ExecuteSql            PROCEDURE(StringTheory pSQL, iResultSet pResult, <? pParm1>,<? pParm2>,<? pParm3>,<? pParm4>,<? pParm5>,<? pParm6>,<? pParm7>,<? pParm8>,<? pParm9>,<? pParm10>,<? pParm11>,<? pParm12>,<? pParm13>,<? pParm14>,<? pParm15>,<? pParm16>,<? pParm17>,<? pParm18>,<? pParm19>,<? pParm20>)
   Code
   Return Driver:NotOk
 
 !-----------------------------------------------------------------
 !!!Derive
 DriverBaseClass._ExecuteSql            PROCEDURE()
+  Code
+  Return Driver:NotOk
+
+!-----------------------------------------------------------------
+!!!Derive
+DriverBaseClass._ExecuteSqlToValue        PROCEDURE(*Cstring pAns)
   Code
   Return Driver:NotOk
 
@@ -5281,7 +5297,7 @@ node  &FieldGroupType ,auto
   code
   Loop x = 1 to self.SharedProperties.FieldList.nodes
     node &= self._withFieldNode(x)
-    If node.Type = ClaGroup then cycle.
+    If node.Type = ClaGroup and pSize < node.Size then cycle.
     If node.Offset = pOffset
       self.Fields &= node
       Return driver:ok
@@ -5320,6 +5336,9 @@ offset  Long
 ! Fields queue record already loaded
 DriverFileClass._FieldIsBlank      Procedure()
   code
+  If not self.fields.Interface &= null
+    Return self.Fields.Interface.IsRecordFieldClear(self.Fields.Type, self.ClaFCB.rec_buf + self.Fields.offset ,self.Fields.Size,'')
+  End
   Case self.Fields.Type
   of ClaSTRING
     Return self._memchk(self.ClaFCB.rec_buf + self.Fields.Offset,32,self.Fields.Length)
@@ -6775,8 +6794,8 @@ DriverFileClass._AfterRead            Procedure(Long pOpCode)
 DriverFileClass.ParseProject  Procedure()
 x      long,auto
 y      long,auto
-col    cstring(255),auto
-precol cstring(255),auto
+col    cstring(DRIVER:MAXPROPNAME),auto
+precol cstring(DRIVER:MAXPROPNAME),auto
 abort  byte
   code
   Clear(self._ProjectField,1)                                ! default to all projected
@@ -6868,9 +6887,9 @@ DriverFileClass._ProjectBlob   Procedure()
 ! does not add the custom clauses, those are only added for reads, not writes.
 ! if pPrimary is set then Primary fields are included
 DriverFileClass.BuildProjectList    Procedure(Long pPrimary)
-x  long,Auto
-y  long,Auto
-alias  cstring(255)
+x      Long,Auto
+y      Long,Auto
+alias  Cstring(255),Auto
   code
   self.ParseProject()                                     ! parses the prop:project, and populates the _ProjectField array
   self.ProjectList.SetValue('')
@@ -7387,7 +7406,7 @@ ulReturn1 Ulong,over(lReturn1)
   of Opcode:SETNONNULL
     lparm1 = self._GetParmAsLong(pVarList,1)
     lparm2 = self._GetParmAsLong(pVarList,2)
-    If self._logClarion then self.Log('[CLAR]SETNONNULL('&lParm1 & ',' & lParm2&')').
+    If self._logClarion then self.Log('[CLAR]SETNONULL('&lParm1 & ',' & lParm2&')').
     self.SetNonNull(lparm1,lparm2)
 
   of Opcode:SET_PROPERTY
@@ -8055,20 +8074,20 @@ cstrchar  byte,auto
 numchar   byte,auto
   Code
   If self._opened = 0 then self._UpdateFileStrings().
-  case pWhat
-  of -1
+  Case pWhat
+  Of -1
     strchar = 0
     numchar = 0
     cstrchar = 0
-  of 1
+  Of 1
     strchar = 255
     numchar = 255
     cstrchar = 255
-  else
+  Else
     strchar = 32
     numchar = 0
     cstrchar = 0
-  end
+  End
   Loop x = 1 to self.SharedProperties.FieldList.nodes
     self.Fields &= self._withFieldNode(x)
     If not self.Fields.Interface &= null
@@ -9471,6 +9490,10 @@ len     long
   Return
 
 GenerateUUid  routine
+  If self._nullstr[self.Fields.index] = '.'
+    ! Field has been set as NULL, so don't auto-generate anything here
+    Exit
+  End
   val = self.GetProp:Value(self.Fields.index)
   If val = '' or val = '00000000-0000-0000-0000-000000000000' or val = all('<0>',16) or (self.fields.type = ClaCSTRING and val[1] = '<0>')
     case self.Fields.uuid
@@ -10768,7 +10791,6 @@ DriverFileClass.SAVEPOINT        PROCEDURE(String pSavePoint)
 ! first parameter is pointer to field in recbuf. Second is length of the field.
 ! aka GETNULL
 DriverFileClass.NULL_          PROCEDURE(Long pAddr, Long pSize)!,LONG
-x    long
   Code
   self.SetError(NoError)
   If self._WithFieldOffset(pAddr - self.ClaFCB.rec_buf,pSize) = Driver:ok
@@ -10778,7 +10800,7 @@ x    long
 
 !-----------------------------------------------------------------
 DriverFileClass.NULL_          PROCEDURE(Long pIndex)
-x    long
+x    long,Auto
   Code
   self.SetError(NoError)
   If self._WithField(pIndex) = Driver:ok
@@ -10793,7 +10815,6 @@ x    long
       If self._nullstr[self.Fields.index] <> '.' then Return False.
     End
     ! so, at this point the field has been _set_ to null. But check and see if the value in the field is still blank.
-    !self.trace('field is set null and self._FieldIsBlank()=' & self._FieldIsBlank())
     Return self._FieldIsBlank()
   End
   Return False
@@ -10850,6 +10871,10 @@ DriverFileClass._SetFieldNull     PROCEDURE()
 DriverFileClass._ClearField     PROCEDURE()
   code
   !self.trace('DriverFileClass._ClearField type=' & self.Fields.Type)
+  If not self.Fields.Interface &= null
+    self.Fields.Interface.ClearRecordField(self.Fields.Type, self.ClaFCB.rec_buf + self.Fields.offset ,self.Fields.Size,'')
+    Return
+  End
   Case self.Fields.Type
   of ClaSTRING
     memset(self.ClaFCB.rec_buf + self.Fields.offset,32,self.Fields.Length)
@@ -10870,9 +10895,14 @@ DriverFileClass._SetAllNoNull     PROCEDURE()
   Return
 
 !-----------------------------------------------------------------
+! called by the compiler on SetNoNull
 DriverFileClass.SETNONNULL      PROCEDURE(Long pAddr, Long pSize)
   Code
   self.SetError(NoError)
+  If pAddr = self.ClaFCB.rec_buf and pSize = self.ClaFCB.rec_len
+    self._SetAllNoNull()
+    Return
+  End
   If self._WithFieldOffset(pAddr - self.ClaFCB.rec_buf,pSize) = Driver:ok
     self._nullstr[self.Fields.index] = '+'
   End
@@ -14252,6 +14282,7 @@ DriverFileSQLClass.GETRANDOM         PROCEDURE(String pFilter)
 !-----------------------------------------------------------------
 DriverFileSQLClass.RECORDSFILTER     PROCEDURE(String pFilter)
 filter   StringTheory
+Ans      Cstring(255)
   Code
   self._ParameterOpcode = Opcode:RECORDS
   self._ClearParameterQueue(self._ParameterOpcode)
@@ -14268,8 +14299,8 @@ filter   StringTheory
     self.SqlCode.Append(' WHERE ' & filter.GetValue())
   End
   self.SqlCode.Append(';')
-  If self._executeSql() = driver:ok
-    Return self.Result.GetCell(1,1)
+  If self._ExecuteSqlToValue(Ans) = driver:ok
+    Return Ans !self.Result.GetCell(1,1)
   End
   Return 0
 
@@ -14278,6 +14309,7 @@ DriverFileSQLClass.RECORDS          PROCEDURE(*? pField1, <*? pField2>, <*? pFie
 filter   StringTheory
 ptr      Long
 offset   Long
+ans      Cstring(255)
   code
   !If self._CheckOpen() = false then Return 0.
   If self._opened = 0 then self._UpdateFileStrings().
@@ -14348,7 +14380,7 @@ offset   Long
   self.SqlCode.Append(';')
   If self._executeSql() = Driver:ok
     Return self.Result.GetCell(1,1)
-  end
+  End
   Return 0
 
 AppendField  routine
@@ -14513,7 +14545,7 @@ stmt  Long
     Return
   End
   self.SqlCode.SetValue(clip(pSql))
-  If self._executeSql(self.SqlCode,pParm1,pParm2,pParm3,pParm4,pParm5,pParm6,pParm7,pParm8,pParm9,pParm10,pParm11,pParm12,pParm13,pParm14,pParm15,pParm16,pParm17,pParm18,pParm19,pParm20) = Driver:ok
+  If self._executeSql(self.SqlCode,self.result,pParm1,pParm2,pParm3,pParm4,pParm5,pParm6,pParm7,pParm8,pParm9,pParm10,pParm11,pParm12,pParm13,pParm14,pParm15,pParm16,pParm17,pParm18,pParm19,pParm20) = Driver:ok
   End
   self._justSet = false
   self.Paging = false
@@ -15886,7 +15918,6 @@ DriverViewClass.Search                    Procedure(String pSearchString,<*? pFi
 
 !-----------------------------------------------------------------
 ! This is called if the SET(file) / Open(VIEW) / Next(View) pattern is used
-! Self._HasBeenSet = false
 DriverViewClass._SetFromFile                Procedure()
 obj  &DriverFileClass
   code
@@ -16792,15 +16823,15 @@ OneFileProjectList  StringTheory
 
 !-----------------------------------------------------------------
 DriverViewSQLClass._BuildProjectListWalker    Procedure(ViewTreeType pNode,StringTheory OneFileProjectList)
-x         long,Auto
-y         long,Auto
-z         long,Auto
-obj       &DriverFileSQLClass,Auto
-usename   cstring(256) ,Auto
-expr      cstring(256) ,Auto
-i         long
-as        byte
-count     long
+x          long,Auto
+y          long,Auto
+z          long,Auto
+obj        &DriverFileSQLClass,Auto
+usename    cstring(DRIVER:MAXPROPNAME) ,Auto
+expr       cstring(DRIVER:MAXPROPNAME) ,Auto
+i          long
+as         byte
+count      long
 AllFields  byte
 PutNode    byte
   code
@@ -17557,7 +17588,6 @@ ShadowBufferPrimed  Byte
     End
     ! If not trigger the stmt to get the next set of rows.
     ! prime the record with the last row in the last result set, or clear the record
-    !self.trace('rows=' & rows)
     If rows
       !self.trace('prime shadow buffer with last row in result set rows=' & rows & ' opcode=' & pOpcode)
       self.ResultToRecords(rows,driver:shadow)            ! Prime the Shadow buffer with the last result
@@ -17618,6 +17648,7 @@ DriverViewSQLClass.RECORDS                   Procedure()
 !-----------------------------------------------------------------
 DriverViewSQLClass.RECORDS                   Procedure(Long pIndex)
 Ans  BIGINT
+cstr Cstring(255)
 Opn  Long
 Sd   Long
 p    Byte
@@ -17672,7 +17703,6 @@ p    Byte
   If Errorcode() then Return Ans.
   opn = self._OffsetParmNumber
   self.SqlCode.SetValue(self._GenerateRecordsSelect(pIndex))
-  !self.SqlCode.trace()
   If self._executeSql() = driver:ok
     Ans = self.Result.GetCell(1,1)
   End
@@ -17743,7 +17773,6 @@ DriverViewSQLClass._BuildSearch                  Procedure(Long pOpcode)
 
 !-----------------------------------------------------------------
 DriverViewSQLClass._SET                       Procedure(Long pOpcode)
-obj              &DriverFileClass,Auto
   code
   self._setdirection = pOpcode
   self._ParameterOpcode = Opcode:SET
@@ -17799,6 +17828,34 @@ obj              &DriverFileClass,Auto
   If Errorcode() then Return.
 !  ! -- put it all together
   self.SqlCode.SetValue(self._GenerateSelect())
+  Return
+
+!-----------------------------------------------------------------
+DriverViewSQLClass.SQL                          Procedure(String pSql,<? pParm1>,<? pParm2>,<? pParm3>,<? pParm4>,<? pParm5>,<? pParm6>,<? pParm7>,<? pParm8>,<? pParm9>,<? pParm10>,<? pParm11>,<? pParm12>,<? pParm13>,<? pParm14>,<? pParm15>,<? pParm16>,<? pParm17>,<? pParm18>,<? pParm19>,<? pParm20>)
+obj              &DriverFileClass,Auto
+  Code
+  Self.SetError(NoError)
+  If self.CheckConnect() = driver:notok then return.
+  If pSql = ''
+    Self.SetError(FileSystemErr)
+    self.SetFileError(SQLErr,'Sql Statement Empty')
+    Return
+  End
+  If Self._HasBeenSet = false
+    Self.Set(0)
+  End
+
+  self.SqlCode.SetValue(clip(pSql))
+  obj &= (self.FileObject[1])
+  If not obj &= null
+    If obj._executeSql(self.SqlCode,self.result,pParm1,pParm2,pParm3,pParm4,pParm5,pParm6,pParm7,pParm8,pParm9,pParm10,pParm11,pParm12,pParm13,pParm14,pParm15,pParm16,pParm17,pParm18,pParm19,pParm20) = Driver:ok
+    End
+  End
+  self._justSet = false
+  self.Paging = false
+  self._ResultSetDirection = Opcode:NEXT
+  self._setdirection = Opcode:NEXT
+  self._HasBeenPropSql = true
   Return
 
 !-----------------------------------------------------------------
@@ -17911,7 +17968,7 @@ isCalc  byte
 ! The SET was called with a ,n parameter. This implies that the first n fields of the order must be pinned
 ! to their current values in the buffer(s).
 DriverViewSQLClass._PrependFixedToWhere                       Procedure(Long pIndex)
-x      long
+x      long,Auto
 obj    &DriverFileClass
 ans    StringTheory
 vff    long,Auto

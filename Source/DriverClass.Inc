@@ -40,6 +40,7 @@ DRIVER:MAXFILESINVIEW        Equate(100)
 DRIVER:MAXOWNER              Equate(256)
 DRIVER:MAXALIASLENGTH        Equate(32)
 DRIVER:MAXPARAMETERS         Equate(4096)
+DRIVER:MAXPROPNAME           Equate(16384)
 
 Dos:FILE_BEGIN               Equate(0)
 Dos:FILE_CURRENT             Equate(1)
@@ -761,11 +762,12 @@ DoPROP:SQL                 Procedure(),VIRTUAL
 GetProp:TimePicture        Procedure(),STRING,VIRTUAL
 SetProp:TimePicture        Procedure(String pValue),VIRTUAL
 
-_ExecuteSql                Procedure(StringTheory pSQL, <? pParm1>,<? pParm2>,<? pParm3>,<? pParm4>,<? pParm5>,<? pParm6>,<? pParm7>,<? pParm8>,<? pParm9>,<? pParm10>,<? pParm11>,<? pParm12>,<? pParm13>,<? pParm14>,<? pParm15>,<? pParm16>,<? pParm17>,<? pParm18>,<? pParm19>,<? pParm20>),LONG,VIRTUAL
+_ExecuteSql                Procedure(StringTheory pSQL, iResultSet pResult, <? pParm1>,<? pParm2>,<? pParm3>,<? pParm4>,<? pParm5>,<? pParm6>,<? pParm7>,<? pParm8>,<? pParm9>,<? pParm10>,<? pParm11>,<? pParm12>,<? pParm13>,<? pParm14>,<? pParm15>,<? pParm16>,<? pParm17>,<? pParm18>,<? pParm19>,<? pParm20>),LONG,VIRTUAL
 _ExecuteSql                Procedure(),LONG,VIRTUAL
 _ExecuteSqlNoParms         Procedure(),Long,Virtual                     ! no prepare, or bind parms, self.result gets the result
 _ExecuteSqlNoParms         Procedure(iResultSet pResult),Long,Virtual   ! no prepare, or bind parms
 _ExecuteSqlToRecord        Procedure(),Long,Proc,Virtual
+_ExecuteSqlToValue         Procedure(*Cstring pAns),Long,Virtual
 GetPROP:SQLFilter          Procedure(),STRING,VIRTUAL             ! this statement should be replaced by the more versatile SQL() statement.
 SetPROP:SQLFilter          Procedure(String pValue),VIRTUAL
 GetProp:SQLOrder           Procedure(),String,Virtual
@@ -1714,6 +1716,7 @@ PREVIOUS                        Procedure(),Derived
 PUT                             Procedure(),Derived
 SET                             Procedure(Long pIndex),Derived
 _SET                            Procedure(Long pOpcode),Virtual
+SQL                             Procedure(String pSql,<? pParm1>,<? pParm2>,<? pParm3>,<? pParm4>,<? pParm5>,<? pParm6>,<? pParm7>,<? pParm8>,<? pParm9>,<? pParm10>,<? pParm11>,<? pParm12>,<? pParm13>,<? pParm14>,<? pParm15>,<? pParm16>,<? pParm17>,<? pParm18>,<? pParm19>,<? pParm20>),Derived
 RECORDS                         Procedure(),BIGINT,Derived
 RECORDS                         Procedure(Long pIndex),BIGINT,Derived
 RESET                           Procedure(String pPosition),Derived

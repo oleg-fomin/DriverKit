@@ -17,6 +17,7 @@
 !   FromRecordField    : Moves the data from the Clarion record structure to the "disk" buffer
 !   ToRecordField      : Moves the data from the "disk" buffer into the Clarion record
 !   ClearRecordField   : Sets the field to a "cleared" state. As called by CLEAR(file)
+!   IsRecordFieldClear : Is the field equal to a Cleared state?
 !   GetSourceSize      : Returns the "disk" size of the field (including arrays).
 !   GetFieldType       : Return a unique text identifier for the field type
 !   GetSQLType         : SQL Data type to use in CREATE statements
@@ -145,6 +146,17 @@ DriverIP4Class.iDriverField.ClearRecordField  Procedure(Byte pFieldType, Long pF
   Return self.iDriverField.ToRecordField(pFieldType,pFieldAddress,pFieldSize,ClaNULL,0,0)
 
 ! -------------------------------------------------------------------
+! For now the pValue parameter will always be blank. Included for future use.
+DriverIP4Class.iDriverField.IsRecordFieldClear  Procedure(Byte pFieldType, Long pFieldAddress,Long pFieldSize,String pValue)
+str  &string
+  code
+  str &= pFieldAddress & ':' & pFieldSize
+  If str = '0.0.0.0'
+    Return True
+  End
+  Return False
+
+! -------------------------------------------------------------------
 ! DriverIP4Class is an example of a field type where the source Size is fixed, and known.
 DriverIP4Class.iDriverField.GetSourceSize  Procedure()
   code
@@ -227,6 +239,17 @@ bin    string(16)  ! ip6, binary is 16 bytes
 DriverIP6Class.iDriverField.ClearRecordField  Procedure(Byte pFieldType, Long pFieldAddress,Long pFieldSize,String pValue)
   code
   Return self.iDriverField.ToRecordField(pFieldType,pFieldAddress,pFieldSize,ClaNULL,0,0)
+
+! -------------------------------------------------------------------
+! For now the pValue parameter will always be blank. Included for future use.
+DriverIP6Class.iDriverField.IsRecordFieldClear  Procedure(Byte pFieldType, Long pFieldAddress,Long pFieldSize,String pValue)
+str  &string
+  code
+  str &= pFieldAddress & ':' & pFieldSize
+  If str = '::'
+    Return True
+  End
+  Return False
 
 ! -------------------------------------------------------------------
 ! DriverIP6Class is an example of a field type where the source Size is fixed, and known.
@@ -371,6 +394,22 @@ str   string(16)
   End
   ! for cstring, or strings of length 36 clear to text 00000000-0000-0000-0000-000000000000
   Return self.iDriverField.ToRecordField(pFieldType,pFieldAddress,pFieldSize,ClaNULL,0,0)
+
+! -------------------------------------------------------------------
+! For now the pValue parameter will always be blank. Included for future use.
+DriverGUIDClass.iDriverField.IsRecordFieldClear  Procedure(Byte pFieldType, Long pFieldAddress,Long pFieldSize,String pValue)
+str  &string
+  code
+  str &= pFieldAddress & ':' & pFieldSize
+  case pFieldSize
+  of 16
+    If str = '' then Return True .
+  of 36
+    If str = '00000000-0000-0000-0000-000000000000' then Return True.
+  of 37
+    If str = '00000000-0000-0000-0000-000000000000<0>' then Return True.
+  End
+  Return False
 
 ! -------------------------------------------------------------------
 ! DriverGUIDClass is an example of a field type where the source Size is fixed, and known.
