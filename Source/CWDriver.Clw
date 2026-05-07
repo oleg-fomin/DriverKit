@@ -70,6 +70,18 @@ ERROR2               Procedure()
     return 'Unable to convert to, or from, unicode'
   of InvalidCodePageErr
     return 'Invalid Code Page'
+  of QueryTimeoutErr
+    Return 'Query Timeout Expired Error'
+  of ConnectionTimeoutErr
+    Return 'Connection Timeout Expired Error'
+  of LoginTimeoutErr
+    Return 'Login Timeout Expired Error'
+  of MissingDatabaseErr
+    Return 'The Database does not exist on the server'
+  of BadLoginErr
+    Return 'The User or Password is incorrect'
+  of ConnectionFailureErr
+    Return 'Connection Failure'
   Else
     Return ClaError()
   End

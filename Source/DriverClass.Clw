@@ -189,7 +189,7 @@ DriverBaseClass.Debug            PROCEDURE()
 DriverBaseClass.Trace            PROCEDURE(String pStr)
 cstr  Cstring(size(pStr)+101)
   Code
-  cstr = '[' & thread() & '][' & self._structure & '][' & self.GetProp:Driver() &'][' & self.GetProp:Label(0) & '][' & self.rid & '] ' & clip(pStr)
+  cstr = '[' & self.GetProp:Driver() &'][' & self._structure & '][' & self.rid & '][THD=' & thread() & '][' & self.GetProp:Label(0) & '] ' & clip(pStr)
   osOutputDebugString(cstr)
   Return
 
@@ -6092,11 +6092,11 @@ ThisTypeSet  Byte,Auto
         self.blobs.insertname = val
       of 'SQLTYPE'
         If ThisTypeSet = false
-          self.blobs.SqlType = val
+          self.blobs.SqlType = Upper(val)
         End
       of self._ThisSqlType
         ThisTypeSet = true
-        self.blobs.SqlType = val
+        self.blobs.SqlType = Upper(val)
       of 'WATCH'
         self.SharedProperties._haswatch = true
         self.blobs.Watch = true
@@ -6242,12 +6242,12 @@ str          StringTheory
         pNode.insertname = val
       of 'SQLTYPE'
         If ThisTypeSet = false
-          pNode.SqlType = val
+          pNode.SqlType = Upper(val)
           self._ParseFieldSQLType(pNode)
         End
       of self._ThisSqlType
         ThisTypeSet = true
-        pNode.SqlType = val
+        pNode.SqlType = Upper(val)
         self._ParseFieldSQLType(pNode)
       of 'UUID4'
       orof 'UUID'
@@ -6307,7 +6307,7 @@ DriverFileClass._ParseDefaultDefault   Procedure(FieldGroupType pNode)
 !-----------------------------------------------------------------
 DriverFileClass._ParseFieldSQLType   Procedure(FieldGroupType pNode)
   Code
-  If upper(pNode.SqlType) = 'UUID'
+  If pNode.SqlType = 'UUID'
     pNode.sqlUuid = true
   End
 
@@ -12953,8 +12953,8 @@ DriverBaseClass._Sanitize      Procedure(String pStr, Long pContext)
 !-----------------------------------------------------------------
 DriverFileSQLClass.CONSTRUCT                 PROCEDURE()
   Code
-  self.LoginTimeout = 10                 ! could probably be less.
-  self.opt:BusyTimeout = 5               ! might need to be more? perhaps a lot more?  In seconds
+  self.LoginTimeout = 10                 ! could probably be less. In seconds.
+  self.opt:BusyTimeout = 50              ! In seconds
   self.opt:zerodate = -1                 ! null
   self.opt:PropSqlMatchByNumber = false  ! only necessary for cases where actual tables are used as dummy tables.
   Return
@@ -15825,11 +15825,15 @@ obj          &DriverFileClass,Auto
         self.ViewMapFieldNumber[pIndex] = pNode.Field[y]
         obj &= (self.ViewMapObj[pIndex])
         self.ViewMapFieldNode[pIndex] = address(obj._WithFieldNode(pNode.Field[y]))
-        if obj._WithField(pNode.Field[y]) = driver:ok
+        If obj._WithField(pNode.Field[y]) = driver:ok
+          If obj.Fields.Type = ClaGROUP or obj.Fields.Over or obj.Fields.InOverGroup  ! these are ignored in the PROJECT so should be ignored in the map as well.
+            pIndex -= 1
+            Cycle
+          End
           self.ViewMapIsPrimary[pIndex] = obj.fields.Primary
-        else
+        Else
           self.ViewMapIsPrimary[pIndex] = false
-        end
+        End
       End
     End
     If not pNode.children &= NULL
@@ -16855,7 +16859,7 @@ PutNode    byte
           pNode.Dynamic = 1
           Loop y = 1 to obj.SharedProperties.FieldList.nodes
             If obj._withField(y) = driver:ok
-              if obj.Fields.Type = ClaGROUP or obj.Fields.Over or obj.Fields.InOverGroup
+              If obj.Fields.Type = ClaGROUP or obj.Fields.Over or obj.Fields.InOverGroup
                 Cycle
               End
               useName = pNode.Alias & '.' & obj.Fields.Column
@@ -16885,6 +16889,12 @@ PutNode    byte
       Loop y = 1 to pNode.NumFields
         self._fieldcounter += 1
         as = false
+        If obj._withField(pNode.Field[y]) = driver:ok
+          If obj.Fields.Type = ClaGROUP or obj.Fields.Over or obj.Fields.InOverGroup
+            Cycle
+          End
+        End
+
         If pNode.name[y]
           i = Instring('|',pNode.name[y],1,1)
           If i
@@ -17556,7 +17566,8 @@ ShadowBufferPrimed  Byte
           self._SetOffset = 1
         End
       End
-      self._Set(pOpcode)
+      self._Set(pOpcode)         ! does prepare
+      If Errorcode() then break.
     End
     ! first check results to see if a row is waiting there.
     rows = self.Result.Rows()
@@ -17569,7 +17580,7 @@ ShadowBufferPrimed  Byte
       rows = 0
       If self.Explain or self.opt:explain or self._logExplain
         self._Explain = true
-        self._Set(pOpcode)
+        self._Set(pOpcode)           ! does prepare
         self._executeSelect()
         self.ResultToExplain(self.result)
         self._Explain = false
@@ -17614,7 +17625,9 @@ ShadowBufferPrimed  Byte
       cycle
     End
     ! if not trigger an end-of-file
-    Self.SetError(BadRecErr)
+    If Errorcode() = NoError
+      Self.SetError(BadRecErr)
+    End
     Break
   End
   !self.trace('-=-= nextprev done with error set to ' & errorcode())
@@ -17863,8 +17876,8 @@ obj              &DriverFileClass,Auto
 ! for a driver if the SQL syntax varies from the one below
 !!! DERIVE if necessary
 DriverViewSQLClass._GenerateSelect              Procedure()
-limit   long
-offset  long
+limit   Long
+offset  Long
 cte     StringTheory
 where   StringTheory
   code
@@ -17880,10 +17893,9 @@ where   StringTheory
   End
   self.BuildSubsetWhere(where,self.GetProp:Alias(1) & '.')
 
-  Return (Choose(self._explain = true,self.ExplainStart(),'')                   & |
+  Return (Choose(self._explain = true,self.ExplainStart(),'')                  & |
          Choose(cte.length() > 0,cte.GetValue(),'')                            & |
          'SELECT '                                                             & |
-         | ! self.TranslateLimitAbove (Limit,Offset)                     & |
          self.TranslateSelectHint(self.tree.hint)                              & |
          Choose(self.distinct = true, 'DISTINCT ','')                          & |
                 self.ProjectList.GetValue()                                    & |

@@ -10,7 +10,7 @@
 ! For new Opcodes and FieldTypes see Driver.Inc                                                 !
 !------------------------------------------------------------------------------------------------
 
-Driver:Version  Equate('1.21')
+Driver:Version  Equate('1.29')
 
 !Region ----------  Equates ----------
 ! BIGINT: use this for now as a 52 bit integer. In later clarion versions could become a int64
@@ -331,5 +331,11 @@ OrphanExistsErr         Equate(138)   !  "A new relationship cannot be made beca
 ClaimAlreadyActiveErr   Equate(139)   !  "Claim already active"
 UnicodeConversionError  Equate(140)   !  "Unable to convert to, or from, unicode"
 InvalidCodePageErr      Equate(141)   !  "Invalid Code Page"
+QueryTimeoutErr         Equate(142)   !  "Query Timeout Expired Error"
+ConnectionTimeoutErr    Equate(143)   !  "Connection Timeout Expired Error"
+LoginTimeoutErr         Equate(144)   !  "Login Timeout Expired Error"
+MissingDatabaseErr      Equate(145)   !  "The Database does not exist on the server"
+BadLoginErr             Equate(146)   !  "The User or Password is incorrect"
+ConnectionFailureErr    Equate(147)   !  "Connection Failure"
 !EndRegion: Errors
 !------------------------------------------------------------------------------------------------

@@ -98,7 +98,7 @@ DefaultValue        aString
 SelectName          aString
 UpdateName          aString
 InsertName          aString
-SQLType             aString
+SQLType             aString       ! Always Uppercase, although may be changed in CREATETABLE
                   End
 
 RelationsQueueType  Queue,type
@@ -805,6 +805,7 @@ LoginTimeout            Long          ! seconds
 reclen                  Ulong
 _indicies               Long,dim(255)
 _inStream               Byte
+_inConnect              Byte
 _transactionPrimary     Byte
 _relationsOff           Byte
 _GetBuffer              Byte          ! used when resetting a view to do the GET into the shadow buffer

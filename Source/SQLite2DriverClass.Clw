@@ -104,7 +104,7 @@ old    &DriverFileSQLite2Class,Auto
 !-----------------------------------------------------------------
 DriverFileSQLite2Class.Construct  Procedure()
   code
-  self.opt:BusyTimeout = 53   ! 53 seconds
+  !self.opt:BusyTimeout = 50   ! seconds
   self._ThisSqlType = 'SQLITE2TYPE'    ! used in dict in extended attributes to identify type settings specific to SQLITE
   self.QuoteString = '"'
   self.AllowParameterRepeats = true
@@ -243,7 +243,7 @@ x  long,Auto
   Loop x = 1 to self.SharedProperties.FieldList.nodes
     self.Fields &= self._WithFieldNode(x)
     If self.Fields.SQLType = 'STRING' or self.Fields.SQLType = 'TEXT' then cycle.
-    If self.Fields.UUID = 4 or self.Fields.UUID = 7 or Upper(self.fields.SQLType) = 'BLOB' or Upper(self.fields.SQLType) = 'UUID' or Upper(self.fields.SQLType) = 'UNIQUEIDENTIFIER'
+    If self.Fields.UUID = 4 or self.Fields.UUID = 7 or self.fields.SQLType = 'BLOB' or self.fields.SQLType = 'UUID' or self.fields.SQLType = 'UNIQUEIDENTIFIER'
       Case self.Fields.Type
       of ClaSTRING
       orof ClaCSTRING
@@ -270,13 +270,13 @@ DriverFileSQLite2Class._ParseDefaultDefault   Procedure(FieldGroupType pNode)
 DriverFileSQLite2Class._ParseFieldSQLType       Procedure(FieldGroupType pNode)
   code
   parent._ParseFieldSQLType(pNode)
-  case upper(pNode.SqlType)
+  case pNode.SqlType
   of 'UUID'
     pNode.SqlType = 'BLOB'
   of 'STRING'
     pNode.SqlType = 'TEXT'
   End
-  If upper(pNode.SqlType) = 'BLOB' and pNode.UUID
+  If pNode.SqlType = 'BLOB' and pNode.UUID
     pNode.sqlUuid = true
   End
 
@@ -2791,6 +2791,7 @@ DriverFileSQLite2Class.CLOSE            PROCEDURE()
 ! if an error is set during the connection, return driver:notok.
 DriverFileSQLite2Class.CheckConnect        PROCEDURE()
   Code
+  If self._inconnect then return driver:ok.
   If self._opened and self.dbHandle
     ! SQLite cannot "lose" a connection - it's a DLL - but other drivers may want to check the connection is ok as well.
     return driver:ok                                                            ! If the table is open, then connection is fine.
@@ -2811,8 +2812,12 @@ result  long,Auto
 str     stringtheory
 owner   cstring(DRIVER:MAXOWNER),Auto
   code
+  self._inconnect = true
   parent.Connect(pOptions)
-  If ErrorCode() Then Return.
+  If ErrorCode()
+    self._inconnect = false
+    Return
+  End
 
   str.SetValue(self.Owner)
   str.ToUnicode(st:EncodeUtf8,self.codepage)
@@ -2825,7 +2830,7 @@ owner   cstring(DRIVER:MAXOWNER),Auto
   If lower(sub(owner,1,5)) = 'file:'
     pOptions = Bor(pOptions,SQLITE_OPEN_URI)
   End
-
+  self._TryConnectedAs = Owner
   self.dbHandle = self.ConnectionPool.GetConnection(Owner,self.Pool,pOptions)
   If self.dbHandle = 0
     result = sqlite3_open_v2(self.Owner,address(self.dbHandle), pOptions ,0)
@@ -2854,6 +2859,7 @@ owner   cstring(DRIVER:MAXOWNER),Auto
     Self._GetDBVersion()
     self.SqlCode.SetValue(str)
   End
+  self._inconnect = false
   Return
 
 !-----------------------------------------------------------------
