@@ -2007,7 +2007,13 @@ tokenString   cString(8192)         !!!todo think about replacing this with vari
 tempstring    cstring(8192)
 HoldDirection Cstring(2)
   code
-  !self.trace('  Tokenize ' & pStr)
+  If self.ConditionQueue &= null
+    self.ConditionQueue &= New ConditionQueueType
+    self.ValueQueue &= New ValueQueueType
+    self.LabelQueue &= New LabelQueueType
+    self.FunctionQueue &= New FunctionQueueType
+    self.ExpressionQueue &= New ExpressionQueueType
+  End
   x = 1
   len = len(pStr)
   loop while x <= len
@@ -2609,8 +2615,10 @@ LabelType  Byte
 Label      Cstring(4096)
   code
   token = sub(pTokenString,pTokenpos,6)
+  If token = '' then Return ''.
   t = sub(token,2,4)
   case Token[1]
+  !!!region token:value
   of token:value
     Get(self.ValueQueue,t)
     If self._ParseContext = driver:searchtext   ! not adding parameters at this point, just displaying text (without quotes)
@@ -2632,7 +2640,8 @@ Label      Cstring(4096)
       Return self._genparm(self._ParameterCount)
     End
     Return self.ValueQueue.Value
-
+  !!!endregion
+  !!!region token:expression
   of token:expression
     Get(self.ExpressionQueue,t)
     If self.ExpressionQueue.brackets
@@ -2640,22 +2649,29 @@ Label      Cstring(4096)
     Else
       Return self._ExpandExpression(self.ExpressionQueue.Expression)
     End
-
+  !!!endregion
+  !!!region token:condition
   of token:condition
     Get(self.ConditionQueue,t)
     Return ' ' & self.TranslateCondition(self.ConditionQueue.Condition) & ' ' ! dont remove ' ' - neceessary for OR AND etc
-
+  !!!endregion
+  !!!region token:label
   of token:label
     Get(self.LabelQueue,t)
+    If pTokenpos > 6 and sub(pTokenString,pTokenpos-6,6) = token:as
+      Return self.LabelQueue.Label   ! Label's following an AS are returned as is.
+    End
     Label = self.TranslateLabel(self.LabelQueue.Label,LabelType)
     Return Label
-
+  !!!endregion
+  !!!region token:function
   of token:function
     Get(self.FunctionQueue,t)
     fc = self.FunctionQueue.Func                      ! cannot pass self.FunctionQueue.Func into _ExpandExpression because it is passed by pointer,
     fp = self.FunctionQueue.Parms                     ! and the string in self.FunctionQueue.Expression could be changed along the way.
     Return self.TranslateFunction(fc,fp,pTokenString,pTokenPos)
-
+  !!!endregion
+  !!!region token:operator
   of token:operator
     case token
     of token:plus
@@ -2686,8 +2702,9 @@ Label      Cstring(4096)
     of token:as
       return ' AS '
     end
+  !!!endregion
   End
-  self.trace('ERROR: Token Not Found. ' & token)
+  self.trace('ERROR: Token Not Found. [' & token & ']')
   !self._viewtokens()
   Return ''
 
@@ -2696,16 +2713,16 @@ Label      Cstring(4096)
 DriverBaseClass._Optimize                Procedure(String pFunction,String pExpression)
   code
   !self.trace('_Optimize ' & pFunction & ' eval=' &  Evaluate(pExpression) & ' expr=' & pExpression)
-  case upper(pFunction)
-  of 'UPPER'
+  Case upper(pFunction)
+  Of 'UPPER'
     If ''''& Evaluate(pExpression) & '''' = pExpression
       pExpression = Upper(pExpression)
-      return pExpression
+      Return pExpression
     End
-  of 'LOWER'
+  Of 'LOWER'
     If ''''& Evaluate(pExpression) & '''' = pExpression
       pExpression = lower(pExpression)
-      return pExpression
+      Return pExpression
     End
   End
   Return clip(pFunction) & '(' & clip(pExpression) & ')'
@@ -3483,6 +3500,7 @@ Ans   Long
 DriverBaseClass.SetInTransaction              Procedure(Long pState)
   code
   self.ConnectionPool.SetTransaction(self.dbHandle,pState)
+  If self._logConnections then self.Log('[CONN][cn01] SetTransaction(' & self.dbHandle & ',' & pState & ')')  .
   self._inTransaction = pState
   Return
 
@@ -3643,7 +3661,6 @@ DriverBaseClass.TranslateRegularExpression    Procedure(*CString pExpr,*CString 
 DriverBaseClass.TranslateVariable  Procedure(*cstring pValue)
 v   cstring(4096)
   code
-  !self.trace('TranslateVariable ' & pValue)
   v = clip(Evaluate(pValue))
   If Errorcode()
     ! ERROR BAD FILTER, VARIABLE NAME
@@ -5393,7 +5410,7 @@ e  long,auto
     self.SetError(e)
     Return Driver:notok
   End
-  self.SetError(e)
+  If e then self.SetError(e).
   Return Driver:ok
 
 !-----------------------------------------------------------------
@@ -6828,19 +6845,18 @@ abort  byte
       End
     End
   End
-
   Return
 
 NextCol  routine
   If self._WithFieldLabeled(col) = Driver:ok
     self._ProjectField()
-  elsif self._WithFieldNamed(col) = Driver:ok
+  Elsif self._WithFieldNamed(col) = Driver:ok
     self._ProjectField()
-  elsif self._WithBlobLabel(col) = Driver:ok
+  Elsif self._WithBlobLabel(col) = Driver:ok
     self._ProjectBlob()
-  elsif self._WithBlobNamed(col) = Driver:ok
+  Elsif self._WithBlobNamed(col) = Driver:ok
     self._ProjectBlob()
-  else
+  Else
     precol = self.SharedProperties.Prefix & ':' & col
     If self._WithFieldLabeled(precol) = Driver:ok
       self._ProjectField()
@@ -6849,7 +6865,6 @@ NextCol  routine
         self._ProjectClauses &= new StringTheory
       End
       self._ProjectClauses.append(col,,',')
-      !self.trace('column in prop:project not found in table, added to Clauses' & col)
       !self.SetError(BadProjectErr)
       !abort = true
     End
@@ -6916,9 +6931,12 @@ alias  Cstring(255),Auto
 
 !-----------------------------------------------------------------
 DriverFileClass.BuildProjectListAppendClauses    Procedure()
+expr   string(8192)
   code
   If not self._ProjectClauses &= null and self._ProjectClauses.Length() > 0
-    self.ProjectList.Append(self._ProjectClauses,,',')
+    self._ParseContext = driver:project
+    expr = self._tokenize(clip(self._ProjectClauses.GetValue()),driver:project)
+    self.ProjectList.Append(self._ExpandExpression(expr),,',')
   End
   Return
 
@@ -10122,7 +10140,7 @@ CellLen       BIGINT,auto
 CellAddr      BIGINT,auto
 rTextLen      Long ! do not ,Auto
   code
-  self.result.GetCell(pRow,pColumn,CellType,CellAddr,CellLen)
+  pResult.GetCell(pRow,pColumn,CellType,CellAddr,CellLen)
   If self.blobs.Memo
     self._Morph(self.blobs.label,ClaMEMO,address(self.blobs.memostring),self.blobs.memosize,CellType,CellAddr,CellLen,0,false,rTextLen)
   else
@@ -13197,6 +13215,7 @@ DriverFileSqlClass.COMMITCONNECTION         PROCEDURE()
       self.SqlCode.SetValue('COMMIT;')
       If self._ExecuteSqlNoParms() = Driver:ok
         self.ConnectionPool.SetTransaction(self.dbHandle,0)
+        If self._logConnections then self.Log('[CONN][cn02] SetTransaction(' & self.dbHandle & ',0)')  .
         self._inTransaction = false
       End
     End
@@ -13343,7 +13362,7 @@ Where       StringTheory
     self.BuildProjectList(false)                   ! calling this can reset the key loaded
   End
   If self._WithKey(pKey) = Driver:ok
-    self.BuildProjectListAppendClauses()      ! calling this can reset the key loaded
+    self.BuildProjectListAppendClauses()           ! calling this can reset the key loaded
   end
   If self._WithKey(pKey) = Driver:ok
     Loop x = 1 to self.keys.components
@@ -13921,9 +13940,13 @@ DriverFileSQLClass.LOGOUTCONNECTION    PROCEDURE()
     if self.ConnectionPool.GetTransaction(self.dbHandle) = 0
       self._ParameterOpcode = Opcode:NONE
       self._LogoutSql()
+      If self._logConnections then self.Log('[CONN] BEGIN Handle=' & self.dbHandle)  .
       If self._ExecuteSqlNoParms() = Driver:ok
-        self.ConnectionPool.SetTransaction(self.dbHandle,self.dbHandle)
-        self._inTransaction = true
+        If Errorcode() = NoError
+          self.ConnectionPool.SetTransaction(self.dbHandle,self.dbHandle)
+          If self._logConnections then self.Log('[CONN][cn03] SetTransaction(' & self.dbHandle & ',' & self.dbHandle & ')')  .
+          self._inTransaction = true
+        End
       End
     else
       self.SetError(LogActiveErr)
@@ -14392,7 +14415,6 @@ AppendField  routine
       filter.append(self.fields.Column & '= ' & self._genparm(self._ParameterCount),,' AND ')
     End
   else
-    self.trace('Bad Field Error')
     self.SetError(BadFieldErr)
   End
 
@@ -14461,6 +14483,7 @@ DriverFileSqlClass.ROLLBACKCONNECTION         PROCEDURE()
       self.SqlCode.SetValue('ROLLBACK;')
       If self._ExecuteSqlNoParms() = Driver:ok
         self.ConnectionPool.SetTransaction(self.dbHandle,0)
+        If self._logConnections then self.Log('[CONN][cn04] SetTransaction(' & self.dbHandle & ',0)')  .
         self._inTransaction = false
       End
     End
@@ -15732,6 +15755,9 @@ srStr     string(8),over(self.SearchRank)
     If obj._WithPrimaryKey() = driver:ok
       pk &= (obj.keys.keyptr)
       obj.setProp:Project('')
+      If not obj._ProjectClauses &= null
+        obj._ProjectClauses.SetValue('')
+      End
       obj.Get(pk)
     End
   End
@@ -16904,21 +16930,21 @@ PutNode    byte
           End
           i = 0
           !i = Instring(' AS ',upper(usename),1,1)
-          If i
-            expr = Sub(usename,1,i-1)
-            as = true
-          Else
+          !If i
+          !  expr = Sub(usename,1,i-1)
+          !  as = true
+          !Else
             expr = usename
-          End
+          !End
           self._ParseContext = driver:project
           OneFileProjectList.Append(usename,,',')  ! before alias added
           expr = self._tokenize(expr,driver:project)
           expr = self._ExpandExpression(expr) !,driver:project,count)
-          If i
-            usename = expr & Sub(usename,i,len(usename))
-          Else
+          !If i
+          !  usename = expr & Sub(usename,i,len(usename))
+          !Else
             usename = expr
-          End
+          !End
         Else
           useName = pNode.Alias & '.' & pNode.File{prop:column,pNode.Field[y]}
           OneFileProjectList.Append(pNode.File{prop:column,pNode.Field[y]},,',')
@@ -17882,7 +17908,6 @@ cte     StringTheory
 where   StringTheory
   code
   !!!todo implement prop:NotDistinct here
-
   self._CalcLimitAndOffset(limit,offset)
   self.BuildSubsetCTE(cte)
   If Errorcode() then Return ''.
@@ -18094,6 +18119,7 @@ DriverResultSetClass.Construct  Procedure()
   self.CellPages &= New CellPageQueueType
   self.Columns &= New ColumnNamesQueueType
   self.state &= New DriverResultSetStateQueueType
+  self.rid = random(1000,9999)
   Return
 
 !-----------------------------------------------------------------
@@ -18111,7 +18137,7 @@ DriverResultSetClass.Destruct  Procedure()
 DriverResultSetClass.Trace            PROCEDURE(String pStr)
 cstr  Cstring(size(pStr)+101),Auto
   Code
-  cstr = '[result] ' & clip(pStr)
+  cstr = '[result][rid= ' & self.rid & '] ' & clip(pStr)
   osOutputDebugString(cstr)
   Return
 
@@ -18255,7 +18281,7 @@ DriverResultSetClass.iResultSet.GetColumnIndex        Procedure(Long pColumn)
 !-----------------------------------------------------------------
 DriverResultSetClass.iResultSet.SetColumnType        Procedure(Long pColumn,Long pType)
   code
-  If pColumn <= maximum(self.ColumnsIndex,1)
+  If pColumn <= maximum(self.ColumnsType,1)
     self.ColumnsType[pcolumn] = pType
   End
   Return
@@ -18263,7 +18289,7 @@ DriverResultSetClass.iResultSet.SetColumnType        Procedure(Long pColumn,Long
 !-----------------------------------------------------------------
 DriverResultSetClass.iResultSet.GetColumnType        Procedure(Long pColumn)
   code
-  If pColumn <= maximum(self.ColumnsIndex,1)
+  If pColumn <= maximum(self.ColumnsType,1)
     Return self.ColumnsType[pcolumn]
   End
   Return 0

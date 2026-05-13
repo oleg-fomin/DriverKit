@@ -3492,13 +3492,19 @@ ans   Cstring(255),Auto
       cmd.Append(self.sqlcode,,'<13,10>')
     end
     ! begin transaction
-    self.SqlCode.SetValue('BEGIN;')
+    self.SqlCode.SetValue('BEGIN IMMEDIATE;')
     If self._ExecuteSqlToValue(ans) = driver:ok
       self._inStream = true
     End
     cmd.Append(self.sqlcode,,'<13,10>')
   End
   self.SqlCode.SetValue(cmd)
+  Return
+
+!-----------------------------------------------------------------
+DriverFileSQLite2Class._LogoutSql  Procedure()
+  code
+  self.SqlCode.SetValue('BEGIN IMMEDIATE;')
   Return
 
 !-----------------------------------------------------------------
@@ -3718,13 +3724,20 @@ dbg               CString(255),Auto
 
 !-----------------------------------------------------------------
 DriverFileSQLite2Class.PACK             PROCEDURE()
+cmd   stringtheory
   Code
   If self.CheckConnect() = Driver:notok then Return.   ! File can be OPEN. If closed a new connection is established.
   Self.SetError(NoError)
-  self.SqlCode.setvalue('VACUUM;')
   self._ParameterOpcode = 0
+  self.SqlCode.setvalue('VACUUM;')
+  cmd.setvalue(self.SqlCode)
   If self._executeSql() = driver:ok
+    self.SqlCode.setvalue('pragma optimize;')
+    If self._executeSql() = driver:ok
+      cmd.Append(self.SqlCode)
+    End
   End
+  self.SqlCode.SetValue(cmd)
   Return
 
 !-----------------------------------------------------------------

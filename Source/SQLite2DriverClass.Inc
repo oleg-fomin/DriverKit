@@ -278,6 +278,7 @@ SetDriverOption             Procedure(String pOption, String pValue),String,Deri
 _ConstructKey               Procedure(Long pPrimary),Virtual
 _Morph                      Procedure(String pFieldLabel,Byte pClarionType, Long pClarionAddress, Long pClarionLength, Long pDbType, Long pDbAddress, Long pDbLength, Long pSqlTimeStamp, Byte pSetFieldNull, *Long rTextLength),Derived
 _UpdateFileStrings          Procedure(),Derived
+_LogoutSql                  Procedure(),Derived
 
 ! File Procedures
 BUILD                       Procedure(),Virtual

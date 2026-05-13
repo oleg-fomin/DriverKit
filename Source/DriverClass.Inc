@@ -1796,6 +1796,7 @@ CellPages                        &CellPageQueueType
 DriverResultSetClass    Class(),Implements(iResultSet),Type, MODULE('DriverClass.Clw'),LINK('DriverClass.Clw',DRVLM), DLL(DRVDM)
 obj                       &DriverBaseClass
 state                     &DriverResultSetStateQueueType
+rid                       long
 NumColumns                Long
 NumRows                   Long
 Columns                   &ColumnNamesQueueType
