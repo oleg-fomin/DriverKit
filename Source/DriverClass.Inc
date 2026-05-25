@@ -224,9 +224,9 @@ RecordLength             BIGINT        ! The Length of the last read when doing 
 SetPointer               BIGINT        ! The position of the last SET command.
 Status                   Long          ! File Open/Closed and access mode
 Errorcode                Long
-Error                    String(255)
-FileErrorCode            Long
-FileError                String(255)
+Error                    cString(255)
+FileErrorCode            cString(16)
+FileError                cString(255)
 FullPathName             cString(FILE:MAXFILENAME2)
 Owner                    cString(DRIVER:MAXOWNER)
 Record                   &String
@@ -287,6 +287,8 @@ lg                    &Long
 rl                    &Real
 st                    &String
 cst                   &Cstring
+dt                    &Date
+tm                    &Time
                     End
 
 ConditionQueueType  queue,type
@@ -360,7 +362,6 @@ _Result                    &DriverResultSetClass    ! This is the class (not the
 QuoteString                Cstring(4)               ! sets or returns the column name delimiter (typically a quote) that the Driver uses to surround column names within its generated SQL statements.
 AllowParameterRepeats      Byte                     ! Some databases allow parameter numbers to be repeated, some do not.
 _PropsCache                Byte                     ! an incrementing number which increments when one of the SQL properties is changed. (Project, Distinct, NotDistinct, Filter, GroupBy, Having, Order, OrderBy, SQLFilter, SQLOrder, Where, WherePage, Explain, FetchSize, ExceptFilter, ExceptTable)
-_inTransaction             Byte
 _Destructing               Byte
 _structure                 String(1)                ! either F for FILE structures or V for View Structures
 NoKeyProject               Byte                     ! inform the SQL view engine not to automatically project key components.
@@ -520,6 +521,13 @@ InterpretProperty          Procedure(LONG pProperty),String,Virtual
 InterpretType              Procedure(Byte pType),String,Virtual
 Trace                      Procedure(STRING pStr),Virtual
 BugAlert                   Procedure(String pStr),Virtual
+BindField                  Procedure(String pName,*Long pLong),Virtual
+BindField                  Procedure(String pName,*Real pReal),Virtual
+BindField                  Procedure(String pName,*String pString),Virtual
+BindField                  Procedure(String pName,*Cstring pCstring),Virtual
+BindField                  Procedure(String pName,*Date pDate),Virtual
+BindField                  Procedure(String pName,*Time pTime),Virtual
+_FindBindQueue             Procedure(Long pAddress),Long,Virtual
 LoadLogging                Procedure(),Virtual
 GetAnyType                 Procedure(*? pField),Long,Virtual
 GetAnySize                 Procedure(*? pField),Long,Virtual
@@ -546,6 +554,7 @@ _HexToLong                 Procedure(String pHex),Long,Virtual
 _BinToLong                 Procedure(String pHex),Long,Virtual
 _i64Fit                    Procedure(String pI64,Byte pClaType,Long pLength),Long,Virtual
 _i64ToCString              Procedure(String pI64,*CString pClaString),Long,Virtual
+_i64ToString               Procedure(String pI64),String,Virtual
 _DecToString               Procedure(Long pStrAddr, Long pLength, Long pDecSize, Long pDecPlaces, Byte pClaType, *String rString),Virtual
 _StringToDec               Procedure(*String pStr, Byte pClaType, Long rDecimalAddress, Long rDecSize, Long rDecPlaces),Virtual
 _parseVersionDb            Procedure(String pVersion),Virtual
@@ -592,9 +601,11 @@ _Optimize                  Procedure(String pFunction,String pExpression),String
 TranslateCondition         Procedure(*cstring pCondition),String,Proc,Virtual
 TranslateFunction          Procedure(*cString pFunc, *cString pParms,string pTokenString,*Long pTokenPos),String,Proc,Virtual
 TranslateBeginsWith        Procedure(*Cstring pFunc, *CString pParms,string pTokenString,*Long pTokenPos,*Cstring[] pExParm,Long pNumParms),String,Virtual
+TranslateBoolean           Procedure(*Cstring pValue),String,Virtual
 TranslateChr               Procedure(*Cstring pFunc, *CString pParms,string pTokenString,*Long pTokenPos,*Cstring[] pExParm,Long pNumParms),String,Virtual
 TranslateClip              Procedure(*Cstring pFunc, *CString pParms,string pTokenString,*Long pTokenPos,*Cstring[] pExParm,Long pNumParms),String,Virtual
 TranslateDate              Procedure(*Cstring pFunc, *CString pParms,string pTokenString,*Long pTokenPos,*Cstring[] pExParm,Long pNumParms),String,Virtual
+_TranslateDateSql          Procedure(String pValue),String,Virtual
 _TranslateDateSql          Procedure(*CString pField, String pMonth, String pDay, String pYear, Byte pLabelType, *Cstring pCond),String,Virtual
 TranslateDay               Procedure(*Cstring pFunc, *CString pParms,string pTokenString,*Long pTokenPos,*Cstring[] pExParm,Long pNumParms),String,Virtual
 _TranslateDaySQL           Procedure(*CString pField),String,Virtual
@@ -609,8 +620,11 @@ TranslateMonth             Procedure(*Cstring pFunc, *CString pParms,string pTok
 _TranslateMonthSQL         Procedure(*CString pField),String,Virtual
 TranslateNull              Procedure(*Cstring pFunc, *CString pParms,string pTokenString,*Long pTokenPos,*Cstring[] pExParm,Long pNumParms),String,Virtual
 TranslateSearchX           Procedure(*Cstring pFunc, *CString pParms,string pTokenString,*Long pTokenPos,*Cstring[] pExParm,Long pNumParms),String,Virtual
+TranslateSql               Procedure(*Cstring pFunc, *CString pParms,string pTokenString,*Long pTokenPos,*Cstring[] pExParm,Long pNumParms),String,Virtual
 TranslateSqrt              Procedure(*Cstring pFunc, *CString pParms,string pTokenString,*Long pTokenPos,*Cstring[] pExParm,Long pNumParms),String,Virtual
 TranslateSub               Procedure(*Cstring pFunc, *CString pParms,string pTokenString,*Long pTokenPos,*Cstring[] pExParm,Long pNumParms),String,Virtual
+TranslateTime              Procedure(*Cstring pFunc, *CString pParms,string pTokenString,*Long pTokenPos,*Cstring[] pExParm,Long pNumParms),String,Virtual
+_TranslateTimeSql          Procedure(String pValue),String,Virtual
 TranslateYear              Procedure(*Cstring pFunc, *CString pParms,string pTokenString,*Long pTokenPos,*Cstring[] pExParm,Long pNumParms),String,Virtual
 _TranslateYearSQL          Procedure(*CString pField),String,Virtual
 _GetFreeParameter          Procedure(),Long,Virtual
@@ -624,7 +638,7 @@ _ClearParameterQueue       Procedure(Long pOpcode),Virtual
 _FreeParameterQueue        Procedure(),Virtual
 _GetSearchRankDirection    Procedure(),Byte,Virtual
 
-TranslateLabel             Procedure(*cstring pValue,*byte pReturnType),String,Proc,Virtual
+TranslateLabel             Procedure(*cstring pValue,*byte pReturnType,String pTokenString,Long pTokenPos),String,Proc,Virtual
 TranslateConstant          Procedure(*cstring pValue,*long pConstant),Long,Virtual
 
 TranslateNoCase            Procedure(*CString pExpr,*CString pColumn),String,Virtual
@@ -659,7 +673,7 @@ LOGGINGON                  Procedure(<String pFileName>,Long pOptions=0),VIRTUAL
 LOGGINGOFF                 Procedure(),VIRTUAL
 SEND                       Procedure(STRING pMessage),STRING,PROC,VIRTUAL
 SetDriverOption            Procedure(String pOption, String pValue),STRING,VIRTUAL
-SQL                        Procedure(String pSql,<? pParm1>,<? pParm2>,<? pParm3>,<? pParm4>,<? pParm5>,<? pParm6>,<? pParm7>,<? pParm8>,<? pParm9>,<? pParm10>,<? pParm11>,<? pParm12>,<? pParm13>,<? pParm14>,<? pParm15>,<? pParm16>,<? pParm17>,<? pParm18>,<? pParm19>,<? pParm20>),VIRTUAL
+SQL                       Procedure(String pSql,<*? pParm1>,<*? pParm2>,<*? pParm3>,<*? pParm4>,<*? pParm5>,<*? pParm6>,<*? pParm7>,<*? pParm8>,<*? pParm9>,<*? pParm10>,<*? pParm11>,<*? pParm12>,<*? pParm13>,<*? pParm14>,<*? pParm15>,<*? pParm16>,<*? pParm17>,<*? pParm18>,<*? pParm19>,<*? pParm20>),VIRTUAL
 STATUS                     Procedure(),LONG,VIRTUAL
 SUBSET                     Procedure(FILE pFile,*? pParm1,<*? pParm2>,<*? pParm3>,<*? pParm4>,<*? pParm5>,<*? pParm6>,<*? pParm7>,<*? pParm8>,<*? pParm9>,<*? pParm10>,<*? pParm11>,<*? pParm12>,<*? pParm13>,<*? pParm14>,<*? pParm15>,<*? pParm16>,<*? pParm17>,<*? pParm18>,<*? pParm19>,<*? pParm20>),VIRTUAL
 _AddSubsetCommand          Procedure(Byte pOperation, File pFile,<String pFilter>),VIRTUAL
@@ -668,6 +682,8 @@ BuildSubsetWhere           Procedure(StringTheory pWhere, String pAlias),VIRTUAL
 PrimeSubset                Procedure(),VIRTUAL
 InTransaction              Procedure(),LONG,VIRTUAL
 SetInTransaction           Procedure(Long pState),VIRTUAL
+InStream                   Procedure(),LONG,VIRTUAL
+SetInStream                Procedure(Long pState),VIRTUAL
 
 GetPROP:Affected           Procedure(),STRING,VIRTUAL             ! Get name of the database from the connect string
 GetProp:AlwaysQuote        Procedure(),STRING,VIRTUAL
@@ -762,7 +778,7 @@ DoPROP:SQL                 Procedure(),VIRTUAL
 GetProp:TimePicture        Procedure(),STRING,VIRTUAL
 SetProp:TimePicture        Procedure(String pValue),VIRTUAL
 
-_ExecuteSql                Procedure(StringTheory pSQL, iResultSet pResult, <? pParm1>,<? pParm2>,<? pParm3>,<? pParm4>,<? pParm5>,<? pParm6>,<? pParm7>,<? pParm8>,<? pParm9>,<? pParm10>,<? pParm11>,<? pParm12>,<? pParm13>,<? pParm14>,<? pParm15>,<? pParm16>,<? pParm17>,<? pParm18>,<? pParm19>,<? pParm20>),LONG,VIRTUAL
+_ExecuteSql                Procedure(StringTheory pSQL, iResultSet pResult, <*? pParm1>,<*? pParm2>,<*? pParm3>,<*? pParm4>,<*? pParm5>,<*? pParm6>,<*? pParm7>,<*? pParm8>,<*? pParm9>,<*? pParm10>,<*? pParm11>,<*? pParm12>,<*? pParm13>,<*? pParm14>,<*? pParm15>,<*? pParm16>,<*? pParm17>,<*? pParm18>,<*? pParm19>,<*? pParm20>),LONG,VIRTUAL
 _ExecuteSql                Procedure(),LONG,VIRTUAL
 _ExecuteSqlNoParms         Procedure(),Long,Virtual                     ! no prepare, or bind parms, self.result gets the result
 _ExecuteSqlNoParms         Procedure(iResultSet pResult),Long,Virtual   ! no prepare, or bind parms
@@ -804,7 +820,6 @@ TypeDescriptorAddress   Long          ! set in driver.clw, not in class
 LoginTimeout            Long          ! seconds
 reclen                  Ulong
 _indicies               Long,dim(255)
-_inStream               Byte
 _inConnect              Byte
 _transactionPrimary     Byte
 _relationsOff           Byte
@@ -977,7 +992,7 @@ _CallFunctionDone          Procedure(),LONG,VIRTUAL
 _CallExecutingCode         Procedure(),LONG,VIRTUAL
 FreeBuffer                 Procedure(),VIRTUAL
 SetCustomType              Procedure(String pFieldLabel,iDriverField pInterface),Long,Proc,Virtual
-TranslateLabel             Procedure(*cstring pValue,*byte pReturnType),String,Proc,Derived
+TranslateLabel             Procedure(*cstring pValue,*byte pReturnType,String pTokenString,Long pTokenPos),String,Proc,Derived
 TranslateReserved          Procedure(*cstring pColumn),String,Virtual
 WrapReserved               Procedure(*cstring pColumn),String,Virtual
 UnwrapReserved             Procedure(*Astring pColumn),String,Virtual
@@ -1010,12 +1025,6 @@ DeformatText               Procedure(String pText,Long pGroupPattern),String,Vir
 !SetDriverOption            Procedure(String pOption, String pValue),STRING,Derived
 
 ! File Procedures
-BindField                  Procedure(String pName,*Long pLong),Virtual
-BindField                  Procedure(String pName,*Real pReal),Virtual
-BindField                  Procedure(String pName,*String pString),Virtual
-BindField                  Procedure(String pName,*Cstring pCstring),Virtual
-_FindBindQueue             Procedure(Long pAddress),Long,Virtual
-
 BLOBSIZE                   Procedure(Long pIndex),BIGINT,VIRTUAL
 BLOBTAKE                   Procedure(Long pIndex,BIGINT pStartPos, BIGINT pEndPos),VIRTUAL
 SetBlobFromAddr            Procedure(Long pIndex,BIGINT pStartPos, BIGINT pAddress, BIGINT pSize),VIRTUAL
@@ -1073,9 +1082,9 @@ EXISTS                     Procedure(String pTablename),LONG,PROC,VIRTUAL
 EXISTS                     Procedure(Long pWhat,String pName),LONG,PROC,VIRTUAL
 EXISTSDB                   Procedure(String pDatabaseName),LONG,PROC,VIRTUAL
 EXPORT                     Procedure(String pDosFileName, Long pOptions=0,Long pFormat=0),LONG,PROC,VIRTUAL
-IMPORT                     Procedure(String pDosFileName, Long pOptions=0,Long pFormat=0),LONG,PROC,VIRTUAL
+IMPORT                     Procedure(String pDosFileName, Long pOptions=0,Long pFlushEvery=0, Long pFormat=0),LONG,PROC,VIRTUAL
 EXPORTCSV                  Procedure(String pDosFileName, Long pOptions=0),LONG,PROC,VIRTUAL
-IMPORTCSV                  Procedure(String pDosFileName, Long pOptions=0),LONG,PROC,VIRTUAL
+IMPORTCSV                  Procedure(String pDosFileName, Long pOptions=0,Long pFlushEvery=0),LONG,PROC,VIRTUAL
 FREESTATE                  Procedure(Long pState),VIRTUAL
 GETRANDOM                  Procedure(String pFilter),VIRTUAL
 GETSTATE                   Procedure(Long pSaveBlob),LONG,VIRTUAL
@@ -1107,8 +1116,8 @@ STATUS                     Procedure(),LONG,DERIVED
 SETSTATUS                  Procedure(Long pAccessMode),VIRTUAL
 STREAM                     Procedure(),VIRTUAL
 SUSPENDRELATIONS           Procedure(),VIRTUAL
-TOQUEUE                    Procedure(Queue pQueue),VIRTUAL
-FROMQUEUE                  Procedure(Queue pQueue),VIRTUAL
+TOQUEUE                    Procedure(Queue pQueue, Long pOptions=0),VIRTUAL
+FROMQUEUE                  Procedure(Queue pQueue, Long pOptions=0,Long pFlushEvery=0),VIRTUAL
 UNLOCK                     Procedure(),VIRTUAL
 UPDATE                     Procedure(String pFilter,*? pField1,String pValue1,<*? pField2>,<String pValue2>,<*? pField3>,<String pValue3>,<*? pField4>,<String pValue4>,<*? pField5>,<String pValue5>,<*? pField6>,<String pValue6>,<*? pField7>,<String pValue7>,<*? pField8>,<String pValue8>,<*? pField9>,<String pValue9>,<*? pField10>,<String pValue10>),VIRTUAL
 UPDATE                     Procedure(Key pKey,*? pField1,String pValue1,<*? pField2>,<String pValue2>,<*? pField3>,<String pValue3>,<*? pField4>,<String pValue4>,<*? pField5>,<String pValue5>,<*? pField6>,<String pValue6>,<*? pField7>,<String pValue7>,<*? pField8>,<String pValue8>,<*? pField9>,<String pValue9>,<*? pField10>,<String pValue10>),VIRTUAL
@@ -1445,7 +1454,9 @@ ROLLBACKCONNECTION        Procedure(),DERIVED
 _SET                      Procedure(Byte pSetMethod, BigInt pPointer,Key pSetKey, Key pSetKeyKey),DERIVED
 SAVEPOINT                 Procedure(String pSavePoint),DERIVED
 SKIP                      Procedure(BIGINT pCount),DERIVED
-SQL                       Procedure(String pSql,<? pParm1>,<? pParm2>,<? pParm3>,<? pParm4>,<? pParm5>,<? pParm6>,<? pParm7>,<? pParm8>,<? pParm9>,<? pParm10>,<? pParm11>,<? pParm12>,<? pParm13>,<? pParm14>,<? pParm15>,<? pParm16>,<? pParm17>,<? pParm18>,<? pParm19>,<? pParm20>),DERIVED
+STREAM                    Procedure(),DERIVED
+FLUSH                     Procedure(),DERIVED
+SQL                       Procedure(String pSql,<*? pParm1>,<*? pParm2>,<*? pParm3>,<*? pParm4>,<*? pParm5>,<*? pParm6>,<*? pParm7>,<*? pParm8>,<*? pParm9>,<*? pParm10>,<*? pParm11>,<*? pParm12>,<*? pParm13>,<*? pParm14>,<*? pParm15>,<*? pParm16>,<*? pParm17>,<*? pParm18>,<*? pParm19>,<*? pParm20>),DERIVED
 SwitchToMaster            Procedure(String pDbid,String pDbName, String pSep, *String pDbNameWas),Long,VIRTUAL
 SwitchBack                Procedure(),VIRTUAL
 _UpdateSql                Procedure(String pFilter,*? pField1,String pValue1,<*? pField2>,<String pValue2>,<*? pField3>,<String pValue3>,<*? pField4>,<String pValue4>,<*? pField5>,<String pValue5>,<*? pField6>,<String pValue6>,<*? pField7>,<String pValue7>,<*? pField8>,<String pValue8>,<*? pField9>,<String pValue9>,<*? pField10>,<String pValue10>),VIRTUAL
@@ -1568,10 +1579,6 @@ Walk                            Procedure(),VIRTUAL
 _Walk                           Procedure(ViewTreeType pNode,Long pLevel),VIRTUAL
 Pipe                            Procedure(Long pOpCode, LONG pClaVCB,long pVarList),LONG,Virtual
 Init                            Procedure(View pView, Long pForce=false),Virtual
-BindField                       Procedure(String pName,*Long pLong),Virtual
-BindField                       Procedure(String pName,*Real pReal),Virtual
-BindField                       Procedure(String pName,*String pString),Virtual
-BindField                       Procedure(String pName,*CString pCstring),Virtual
 _ClearParameterQueue            Procedure(Long pOpcode),Derived
 PrimeSubset                     Procedure(),DERIVED
 _FillBuffersFromPosition        Procedure(STRING pPosition, Long pOffset, Long pWhichBuffer),Long,Proc,VIRTUAL
@@ -1693,7 +1700,7 @@ CheckConnect                    Procedure(),Long,Virtual
 _GenerateSelect                 Procedure(),String,Virtual
 _GenerateRecordsSelect          Procedure(Long pIndex),String,Virtual
 
-TranslateLabel                  Procedure(*cstring pValue,*byte pReturnType),String,Proc,Derived
+TranslateLabel                  Procedure(*cstring pValue,*byte pReturnType,String pTokenString,Long pTokenPos),String,Proc,Derived
 TranslateFieldClarion           Procedure(*cstring pValue),String,Proc,Virtual
 TranslateFieldSQL               Procedure(*cstring pValue),String,Proc,Virtual
 TranslateJoinHint               Procedure(String pHint),String,Virtual
@@ -1717,7 +1724,7 @@ PREVIOUS                        Procedure(),Derived
 PUT                             Procedure(),Derived
 SET                             Procedure(Long pIndex),Derived
 _SET                            Procedure(Long pOpcode),Virtual
-SQL                             Procedure(String pSql,<? pParm1>,<? pParm2>,<? pParm3>,<? pParm4>,<? pParm5>,<? pParm6>,<? pParm7>,<? pParm8>,<? pParm9>,<? pParm10>,<? pParm11>,<? pParm12>,<? pParm13>,<? pParm14>,<? pParm15>,<? pParm16>,<? pParm17>,<? pParm18>,<? pParm19>,<? pParm20>),Derived
+SQL                             Procedure(String pSql,<*? pParm1>,<*? pParm2>,<*? pParm3>,<*? pParm4>,<*? pParm5>,<*? pParm6>,<*? pParm7>,<*? pParm8>,<*? pParm9>,<*? pParm10>,<*? pParm11>,<*? pParm12>,<*? pParm13>,<*? pParm14>,<*? pParm15>,<*? pParm16>,<*? pParm17>,<*? pParm18>,<*? pParm19>,<*? pParm20>),DERIVED
 RECORDS                         Procedure(),BIGINT,Derived
 RECORDS                         Procedure(Long pIndex),BIGINT,Derived
 RESET                           Procedure(String pPosition),Derived
@@ -1835,6 +1842,7 @@ Options                         Long
 Handle                          Long
 Counter                         Long
 Transaction                     Long
+Stream                          Long
                               End
 
 DriverConnectionPoolClass     Class(),Type,MODULE('DriverClass.Clw'),LINK('DriverClass.Clw',DRVLM), DLL(DRVDM)
@@ -1850,6 +1858,8 @@ GetConnectionDetails            Procedure(String pConnectString, Long pPool, Lon
 Disconnect                      Procedure(Long pHandle),Long,VIRTUAL
 SetTransaction                  Procedure(Long pHandle, Long pValue),VIRTUAL
 GetTransaction                  Procedure(Long pHandle),Long,VIRTUAL
+SetStream                       Procedure(Long pHandle, Long pValue),VIRTUAL
+GetStream                       Procedure(Long pHandle),Long,VIRTUAL
                               End
 !==================================================================================================
 DriverCriticalSection         Class(),Type,MODULE('DriverClass.Clw'),LINK('DriverClass.Clw',DRVLM), DLL(DRVDM)

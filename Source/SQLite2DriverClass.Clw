@@ -270,7 +270,17 @@ DriverFileSQLite2Class._ParseDefaultDefault   Procedure(FieldGroupType pNode)
 DriverFileSQLite2Class._ParseFieldSQLType       Procedure(FieldGroupType pNode)
   code
   parent._ParseFieldSQLType(pNode)
+
+  ! first translate types
+  Case pNode.SqlType
+  of 'BIT'
+    pNode.SqlType = 'BOOLEAN'
+  End
+
+  ! second take any action a specific type requires.
   case pNode.SqlType
+  of 'BOOLEAN'
+    pNode.Boolean = true
   of 'UUID'
     pNode.SqlType = 'BLOB'
   of 'STRING'
@@ -1101,14 +1111,11 @@ result  Long,Auto
 !-----------------------------------------------------------------
 ! does a parameterized request, with up to 20 parameters
 ! returns driver:notok if the SQL part is faulty
-DriverFileSQLite2Class._ExecuteSql     Procedure(StringTheory pSQL, iResultSet pResult, <? pParm1>,<? pParm2>,<? pParm3>,<? pParm4>,<? pParm5>,<? pParm6>,<? pParm7>,<? pParm8>,<? pParm9>,<? pParm10>,<? pParm11>,<? pParm12>,<? pParm13>,<? pParm14>,<? pParm15>,<? pParm16>,<? pParm17>,<? pParm18>,<? pParm19>,<? pParm20>)
-stmt    long
-result  long
-len     long
-parm    any
-count   long
-s      &string
-rl     real
+DriverFileSQLite2Class._ExecuteSql     Procedure(StringTheory pSQL, iResultSet pResult, <*? pParm1>,<*? pParm2>,<*? pParm3>,<*? pParm4>,<*? pParm5>,<*? pParm6>,<*? pParm7>,<*? pParm8>,<*? pParm9>,<*? pParm10>,<*? pParm11>,<*? pParm12>,<*? pParm13>,<*? pParm14>,<*? pParm15>,<*? pParm16>,<*? pParm17>,<*? pParm18>,<*? pParm19>,<*? pParm20>)
+stmt    long,Auto
+result  long,Auto
+count   long  ! not Auto
+x        Long,Auto
   code
   If self.CheckConnect() = driver:notok then Return driver:notok.
   self.SqlCode.SetValue(pSql)
@@ -1117,28 +1124,15 @@ rl     real
   End
   stmt = self._Prepare()
   If stmt
+    If not omitted(pParm1)
+      If self.ParmBufferX &= Null then self.ParmBufferX &= NEW DriverParmBufferClass.
+    End
+    Loop x = 4 to 23
+      If omitted(x) then break.
+      do BindParm
+    End
 
     self._ResultRow = 0
-    If not omitted(pParm1) then parm = pParm1 ; do BindParm.
-    If not omitted(pParm2) then parm = pParm2 ; do BindParm.
-    If not omitted(pParm3) then parm = pParm3 ; do BindParm.
-    If not omitted(pParm4) then parm = pParm4 ; do BindParm.
-    If not omitted(pParm5) then parm = pParm5 ; do BindParm.
-    If not omitted(pParm6) then parm = pParm6 ; do BindParm.
-    If not omitted(pParm7) then parm = pParm7 ; do BindParm.
-    If not omitted(pParm8) then parm = pParm8 ; do BindParm.
-    If not omitted(pParm9) then parm = pParm9 ; do BindParm.
-    If not omitted(pParm10) then parm = pParm10 ; do BindParm.
-    If not omitted(pParm11) then parm = pParm11 ; do BindParm.
-    If not omitted(pParm12) then parm = pParm12 ; do BindParm.
-    If not omitted(pParm13) then parm = pParm13 ; do BindParm.
-    If not omitted(pParm14) then parm = pParm14 ; do BindParm.
-    If not omitted(pParm15) then parm = pParm15 ; do BindParm.
-    If not omitted(pParm16) then parm = pParm16 ; do BindParm.
-    If not omitted(pParm17) then parm = pParm17 ; do BindParm.
-    If not omitted(pParm18) then parm = pParm18 ; do BindParm.
-    If not omitted(pParm19) then parm = pParm19 ; do BindParm.
-    If not omitted(pParm20) then parm = pParm20 ; do BindParm.
     !self.NewResultSet(driver:DontFreeRam)
     self._ExecuteSqlToResults(stmt,pResult)
     result = sqlite3_finalize(stmt)
@@ -1155,20 +1149,74 @@ rl     real
 
 BindParm  routine
   count += 1
-  If IsString(parm)
-    len = len(clip(parm))
+  execute count
+    self._BindParameter(stmt,count,pParm1,self.ParmBufferX,self.CodePage)
+    self._BindParameter(stmt,count,pParm2,self.ParmBufferX,self.CodePage)
+    self._BindParameter(stmt,count,pParm3,self.ParmBufferX,self.CodePage)
+    self._BindParameter(stmt,count,pParm4,self.ParmBufferX,self.CodePage)
+    self._BindParameter(stmt,count,pParm5,self.ParmBufferX,self.CodePage)
+    self._BindParameter(stmt,count,pParm6,self.ParmBufferX,self.CodePage)
+    self._BindParameter(stmt,count,pParm7,self.ParmBufferX,self.CodePage)
+    self._BindParameter(stmt,count,pParm8,self.ParmBufferX,self.CodePage)
+    self._BindParameter(stmt,count,pParm9,self.ParmBufferX,self.CodePage)
+    self._BindParameter(stmt,count,pParm10,self.ParmBufferX,self.CodePage)
+    self._BindParameter(stmt,count,pParm11,self.ParmBufferX,self.CodePage)
+    self._BindParameter(stmt,count,pParm12,self.ParmBufferX,self.CodePage)
+    self._BindParameter(stmt,count,pParm13,self.ParmBufferX,self.CodePage)
+    self._BindParameter(stmt,count,pParm14,self.ParmBufferX,self.CodePage)
+    self._BindParameter(stmt,count,pParm15,self.ParmBufferX,self.CodePage)
+    self._BindParameter(stmt,count,pParm16,self.ParmBufferX,self.CodePage)
+    self._BindParameter(stmt,count,pParm17,self.ParmBufferX,self.CodePage)
+    self._BindParameter(stmt,count,pParm18,self.ParmBufferX,self.CodePage)
+    self._BindParameter(stmt,count,pParm19,self.ParmBufferX,self.CodePage)
+    self._BindParameter(stmt,count,pParm20,self.ParmBufferX,self.CodePage)
+  end
+
+!-----------------------------------------------------------------
+DriverFileSQLite2Class._BindParameter    Procedure(Long pStmt,Long pCount, *? pParm, DriverParmBufferClass pParmBuffer, Long pCodePage)
+ParmType   Long,Auto
+s       &string
+rl      real
+len     long,Auto
+result  long,Auto
+  code
+  ParmType = Self.GetAnyType(pParm)
+
+  case ParmType
+  of ClaString
+  orof ClaCString
+  orof ClaPString
+    len = len(clip(pParm))
     s &= new(string(len))
-    s = parm
-    If self._logBind then self.Log('[BIND][sb1]' & count & ' (string)[' & s & ']').
-    If self.ParmBufferX &= Null then self.ParmBufferX &= NEW DriverParmBufferClass.
-    self.ParmBufferX._SetParmBuffer(count,Address(s),Len, SQLITE_TEXT, 0, driver:AnsiToUtf8+driver:Dispose,self.codepage)
-    result = sqlite3_bind_text(Stmt,Count ,self.ParmBufferX.ParmBufferAddr[Count], self.ParmBufferX.ParmBufferLen[Count] ,SQLITE_STATIC)
+    s = pParm
+    If self._logBind then self.Log('[BIND][sb1]' & pCount & ' (string(' & len & '))[' & s & ']').
+    self.ParmBufferX._SetParmBuffer(pCount,Address(s),Len, SQLITE_TEXT, 0, driver:AnsiToUtf8+driver:Dispose,self.codepage)
+    result = sqlite3_bind_text(pStmt,pCount ,self.ParmBufferX.ParmBufferAddr[pCount], self.ParmBufferX.ParmBufferLen[pCount] ,SQLITE_STATIC)  ! s is transient, but ParmBuffer is static
     self.SetErrorSqlite(result,'[p020]')
     Dispose(s)
+
+  of ClaDate
+    s &= new(string(10))
+    s = format(pParm,@d010-)
+    If self._logBind then self.Log('[BIND][sb2]' & pCount & ' (date)[' & s & ']').
+    self.ParmBufferX._SetParmBuffer(pCount,Address(s),10, SQLITE_TEXT, 0, driver:AnsiToUtf8+driver:Dispose,self.codepage)
+    result = sqlite3_bind_text(pStmt,pCount ,self.ParmBufferX.ParmBufferAddr[pCount], self.ParmBufferX.ParmBufferLen[pCount] ,SQLITE_STATIC)
+    self.SetErrorSqlite(result,'[p020]')
+    Dispose(s)
+
+  of ClaTime
+    s &= new(string(13))
+    s = self.TempFormat.FormatValue(pParm,'@t093')
+    If self._logBind then self.Log('[BIND][sb3]' & pCount & ' (time)[' & s & ']').
+    self.ParmBufferX._SetParmBuffer(pCount,Address(s),12, SQLITE_TEXT, 0, driver:AnsiToUtf8+driver:Dispose,self.codepage)
+    result = sqlite3_bind_text(pStmt,pCount ,self.ParmBufferX.ParmBufferAddr[pCount], self.ParmBufferX.ParmBufferLen[pCount] ,SQLITE_STATIC)
+    self.SetErrorSqlite(result,'[p020]')
+    Dispose(s)
+
   Else
-    rl = parm
-    If self._logBind then self.Log('[BIND][sb2]' & count & ' (real)' & rl).
-    result = sqlite3_bind_double(stmt,count,rl)
+    rl = pParm
+    If self._logBind then self.Log('[BIND][sb4]' & pCount & ' (real)' & rl).
+    result = sqlite3_bind_double(pStmt,pCount,rl)
     self.SetErrorSqlite(result,'[p021]')
   End
 
@@ -1763,7 +1811,7 @@ lg      Long,Auto
           pParmBuffer._SetParmBuffer(count,Address(lg),4, SQLITE_INTEGER, 0, 0,0)
           result = sqlite3_bind_int(pStmt,Count, lg)
         Else
-          If self._logBind then self.Log('[BIND][sb4]' & self.ParameterQueue.ParameterArray[x].Count & ' (string)' & self.ParameterQueue.ParameterArray[x].Value).
+          If self._logBind then self.Log('[BIND][sb37]' & self.ParameterQueue.ParameterArray[x].Count & ' (string)' & self.ParameterQueue.ParameterArray[x].Value).
           pParmBuffer._SetParmBuffer(count,Address(self.ParameterQueue.ParameterArray[x].Value),Len, SQLITE_TEXT, 0, driver:AnsiToUtf8+driver:Dispose,pCodePage)
           result = sqlite3_bind_text(pStmt,Count ,pParmBuffer.ParmBufferAddr[Count], pParmBuffer.ParmBufferLen[Count] ,SQLITE_STATIC)
         End
@@ -1858,7 +1906,7 @@ hi        Long
 
   code
   If self.null_(self.Fields.index) = true
-    If self._logBind then self.Log('[BIND][sb52]' & pCount & ' (null)').
+    If self._logBind then self.Log('[BIND][sb51]' & pCount & ' (null)').
     result = sqlite3_bind_null(pStmt,pCount)
     self.SetErrorSqlite(result,'[p077]')
     Return
@@ -1888,7 +1936,7 @@ hi        Long
           result = sqlite3_bind_int(pStmt,pCount,sh)
           self.SetErrorSqlite(result,'[p071]')
         of 4
-          If self._logBind then self.Log('[BIND][sb3]' & pCount & ' (long)' & lg).
+          If self._logBind then self.Log('[BIND][sb13]' & pCount & ' (long)' & lg).
           result = sqlite3_bind_int(pStmt,pCount,lg)
           self.SetErrorSqlite(result,'[p072]')
         of 8
@@ -2002,12 +2050,53 @@ hi        Long
       self.SetErrorSqlite(result,'[p087]')
 
     of ClaDate
-      sx = self.FormatDate(dt)
-      len = len(clip(sx))
-      If self._logBind then self.Log('[BIND][sb31]' & pCount & ' (date)' & sx).
-      pParmBuffer._SetParmBuffer(pCount,address(sx),len, SQLITE_TEXT, 0, driver:AnsiToUtf8+driver:Dispose,self.codepage)
-      result = sqlite3_bind_text(pStmt,pCount ,pParmBuffer.ParmBufferAddr[pCount], pParmBuffer.ParmBufferLen[pCount] ,SQLITE_STATIC)
-      self.SetErrorSqlite(result,'[p088]')
+      If dt = 0
+        Case self.opt:ZeroDate
+        Of -1
+          Case self._ParameterOpcode
+          of Opcode:NEXT orof Opcode:PREVIOUS orof Opcode:SET
+            ! when paging, we want to start as 0, not null, so always bind 0 as 0 date.
+          sx = '0000-00-00'
+          len = len(clip(sx))
+          If self._logBind then self.Log('[BIND][sb52]' & pCount & ' (date)' & sx).
+          pParmBuffer._SetParmBuffer(pCount,address(sx),len, SQLITE_TEXT, 0, driver:AnsiToUtf8+driver:Dispose,self.codepage)
+          result = sqlite3_bind_text(pStmt,pCount ,pParmBuffer.ParmBufferAddr[pCount], pParmBuffer.ParmBufferLen[pCount] ,SQLITE_STATIC)
+          self.SetErrorSqlite(result,'[p088]')
+          Else
+            If self._logBind then self.Log('[BIND][sb53]' & pCount & ' (null)').
+            result = sqlite3_bind_null(pStmt,pCount)
+            self.SetErrorSqlite(result,'[p077]')
+          End
+        Of 0
+          sx = '0000-00-00'
+          len = len(clip(sx))
+          If self._logBind then self.Log('[BIND][sb54]' & pCount & ' (date)' & sx).
+          pParmBuffer._SetParmBuffer(pCount,address(sx),len, SQLITE_TEXT, 0, driver:AnsiToUtf8+driver:Dispose,self.codepage)
+          result = sqlite3_bind_text(pStmt,pCount ,pParmBuffer.ParmBufferAddr[pCount], pParmBuffer.ParmBufferLen[pCount] ,SQLITE_STATIC)
+          self.SetErrorSqlite(result,'[p088]')
+        Of 1
+          sx = '0001-01-01'
+          len = len(clip(sx))
+          If self._logBind then self.Log('[BIND][sb55]' & pCount & ' (date)' & sx).
+          pParmBuffer._SetParmBuffer(pCount,address(sx),len, SQLITE_TEXT, 0, driver:AnsiToUtf8+driver:Dispose,self.codepage)
+          result = sqlite3_bind_text(pStmt,pCount ,pParmBuffer.ParmBufferAddr[pCount], pParmBuffer.ParmBufferLen[pCount] ,SQLITE_STATIC)
+          self.SetErrorSqlite(result,'[p088]')
+        Else
+          sx = format(self.opt:ZeroDate / 10000,@n04) & '-' & format((self.opt:ZeroDate / 100) % 100,@n02) & '-' & format(self.opt:ZeroDate % 100,@n02)
+          len = len(clip(sx))
+          If self._logBind then self.Log('[BIND][sb56]' & pCount & ' (date)' & sx).
+          pParmBuffer._SetParmBuffer(pCount,address(sx),len, SQLITE_TEXT, 0, driver:AnsiToUtf8+driver:Dispose,self.codepage)
+          result = sqlite3_bind_text(pStmt,pCount ,pParmBuffer.ParmBufferAddr[pCount], pParmBuffer.ParmBufferLen[pCount] ,SQLITE_STATIC)
+          self.SetErrorSqlite(result,'[p088]')
+        End
+      Else
+        sx = self.FormatDate(dt)
+        len = len(clip(sx))
+        If self._logBind then self.Log('[BIND][sb31]' & pCount & ' (date)' & sx).
+        pParmBuffer._SetParmBuffer(pCount,address(sx),len, SQLITE_TEXT, 0, driver:AnsiToUtf8+driver:Dispose,self.codepage)
+        result = sqlite3_bind_text(pStmt,pCount ,pParmBuffer.ParmBufferAddr[pCount], pParmBuffer.ParmBufferLen[pCount] ,SQLITE_STATIC)
+        self.SetErrorSqlite(result,'[p088]')
+      End
 
     of ClaTime
       sx = self.FormatTime(tm)
@@ -2190,7 +2279,7 @@ strx    &string   ! do not auto
 utfstr  &string
 
   Code
-  !self.trace('DriverFileSQLite2Class._Morph pFieldLabel=' & clip(pFieldLabel) & ' pClarionType=' & pClarionType & ' ' & self.InterpretType(pClarionType) & ' pClarionLength=' & pClarionLength & ' rTextLength=' & rTextLength & ' pDbType=' & pDbType )
+  !self.trace('DriverFileSQLite2Class._Morph pFieldLabel=' & clip(pFieldLabel) & ' pClarionType=' & pClarionType & ' ' & self.InterpretType(pClarionType) & ' pClarionLength=' & pClarionLength & ' rTextLength=' & rTextLength & ' pDbType=' & pDbType & ' ' & self.InterpretSQLType(pDbType))
   Case pDbType
 !region - SQLITE_INTEGER
 !------------------------------------------------
@@ -3176,6 +3265,36 @@ allSql        StringTheory
   Return
 
 !-----------------------------------------------------------------
+DriverFileSQLite2Class._CreateValidationBoolean      PROCEDURE()
+  Code
+  If self.Fields.Boolean = false then return false.
+  case self.fields.Type
+  of ClaBYTE
+  orof ClaSHORT
+  orof ClaUSHORT
+  orof ClaLONG
+  orof ClaULONG
+  orof ClaREAL
+  orof ClaSREAL
+  orof ClaDECIMAL
+  orof ClaPDECIMAL
+    If self.fields.NotNull
+      self.SqlCode.append(' NOT NULL CONSTRAINT check_' & self.FullPathName & '_' & self.Fields.Column & ' CHECK (' & self.Fields.column & ' IN (0, 1))')
+    Else
+      self.SqlCode.append(' CONSTRAINT check_' & self.FullPathName & '_' & self.Fields.Column & ' CHECK (' & self.Fields.column & ' IN (0, 1))')
+    End
+  of ClaString
+  orof ClaCString
+  orof ClaPString
+    If self.fields.NotNull
+      self.SqlCode.append(' NOT NULL CONSTRAINT check_' & self.FullPathName & '_' & self.Fields.Column & ' CHECK (' & self.Fields.column & ' IN (''0'', ''1''))')
+    Else
+      self.SqlCode.append(' CONSTRAINT check_' & self.FullPathName & '_' & self.Fields.Column & ' CHECK (' & self.Fields.column & ' IN (''0'', ''1''))')
+    End
+  End
+  Return true
+
+!-----------------------------------------------------------------
 !-----------------------------------------------------------------
 ! This follows the rules as defined for the SQLite driver.
 ! https://www.capesoft.com/docs/Driverkit/ClarionObjectBasedDrivers.htm#sqlite2createcollate
@@ -3456,11 +3575,7 @@ DriverFileSQLite2Class.STREAM           PROCEDURE()
 cmd   StringTheory
 ans   Cstring(255),Auto
   Code
-  parent.Stream()
-  If Errorcode() then Return.
-  If self._inTransaction or self._InStream
-    self.SetError(LogActiveErr)
-  ElsIf self.dbHandle
+  If self.dbHandle
     self._ParameterOpcode = Opcode:NONE
     ! synchronous
     self.SqlCode.SetValue('PRAGMA synchronous;')
@@ -3484,20 +3599,19 @@ ans   Cstring(255),Auto
     Else
       self._CacheSizeAtStream = -2000
     End
-    if self._CacheSizeAtStream > 0 then self._CacheSizeAtStream = (self._CacheSizeAtStream / 1024) * -1.
-    if self._CacheSizeAtStream > -20000
+    If self._CacheSizeAtStream > 0 then self._CacheSizeAtStream = (self._CacheSizeAtStream / 1024) * -1.
+    If self._CacheSizeAtStream > -20000
       self.SqlCode.SetValue('PRAGMA cache_size=-20000;')
       If self._ExecuteSqlToValue(ans) = driver:ok
       End
       cmd.Append(self.sqlcode,,'<13,10>')
-    end
-    ! begin transaction
-    self.SqlCode.SetValue('BEGIN IMMEDIATE;')
-    If self._ExecuteSqlToValue(ans) = driver:ok
-      self._inStream = true
     End
-    cmd.Append(self.sqlcode,,'<13,10>')
   End
+  parent.Stream()
+  If Errorcode()
+    self.Flush()  ! undo the  pragma settings above
+  End
+  cmd.Append(self.sqlcode,,'<13,10>')
   self.SqlCode.SetValue(cmd)
   Return
 
@@ -3511,26 +3625,17 @@ DriverFileSQLite2Class._LogoutSql  Procedure()
 DriverFileSQLite2Class.FLUSH             Procedure
 cmd  StringTheory
   Code
-  If self._inTransaction                ! If you're inside a transaction, you can't call FLUSH
-    self.SetError(LogActiveErr)
-    Return
-  elsif self._InStream = False          ! don't set an error - Flush can be called without STREAM
-    !Self.SetError(NoLogoutErr)
-  Else
-    self._ParameterOpcode = Opcode:NONE
-    self.SqlCode.SetValue('COMMIT;')
-    If self._ExecuteSql() = Driver:ok
-    End
-    cmd.append(self.sqlcode,,'<13,10>')
-  End
-  If self._SynchronousAtStream > -1 and self._inStream
+  parent.Flush()
+
+  If self._SynchronousAtStream > -1
     self.SqlCode.SetValue('PRAGMA synchronous=' &  self._SynchronousAtStream & ';')
     If self._ExecuteSql() = Driver:ok
     End
     self._SynchronousAtStream = -1
     cmd.append(self.sqlcode,,'<13,10>')
   End
-  If self._CacheSizeAtStream > -20000 and self._inStream
+
+  If self._CacheSizeAtStream > -20000
     self.SqlCode.SetValue('PRAGMA cache_size=' &  self._CacheSizeAtStream & ';')
     If self._ExecuteSql() = Driver:ok
     End
@@ -3538,9 +3643,11 @@ cmd  StringTheory
     cmd.append(self.sqlcode,,'<13,10>')
   End
 
-  self._inStream = False
-  parent.Flush()
+  !If self.InStream() = 0          ! Flush can be called without STREAM - don't set an error
+  !  Return
+  !End
   If Errorcode() then Return.
+
   If self.dbHandle
     self._ParameterOpcode = Opcode:NONE
     self.SqlCode.SetValue('PRAGMA wal_checkpoint(PASSIVE);')
@@ -3608,7 +3715,7 @@ obj   &DriverFileSQLClass
 DriverFileSQLite2Class.MERGEFast      Procedure(String pDestination, LONG pOptions)
 obj   &DriverFileSQLClass
   Code
-  self._MergeWork(obj,pDestination,pOptions)
+  self._MergeWork(self,pDestination,pOptions)
   Return
 
 !-----------------------------------------------------------------

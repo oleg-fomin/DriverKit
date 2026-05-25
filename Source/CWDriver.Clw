@@ -152,55 +152,29 @@ obj      &DriverFileClass
   Return
 
 !------------------------------------------------------------------------------------------------
-BINDFIELD                  Procedure(VIEW pView,String pName, *Long pLong)
-obj      &DriverViewClass
+BINDFIELD                 Procedure(FILE pFile,String pName, *Date pDate)
+obj      &DriverFileClass
   Code
-  obj &= pView{prop:object}
+  obj &= pFile{prop:object}
   If obj &= null
     ClaSetError(NoDriverSupport)
     Return
   End
-  If obj._logClarion then obj.Log('[CLAR]BINDFIELD(' & clip(pName) & ', long)').
-  obj.BindField(pName,pLong)
+  If obj._logClarion then obj.Log('[CLAR]BINDFIELD(' & clip(pName) & ', pDate)').
+  obj.BindField(pName,pDate)
   Return
 
 !------------------------------------------------------------------------------------------------
-BINDFIELD                  Procedure(VIEW pView,String pName, *Real pReal)
-obj      &DriverViewClass
+BINDFIELD                 Procedure(FILE pFile,String pName, *Time pTime)
+obj      &DriverFileClass
   Code
-  obj &= pView{prop:object}
+  obj &= pFile{prop:object}
   If obj &= null
     ClaSetError(NoDriverSupport)
     Return
   End
-  If obj._logClarion then obj.Log('[CLAR]BINDFIELD(' & clip(pName) & ', real)').
-  obj.BindField(pName,pReal)
-  Return
-
-!------------------------------------------------------------------------------------------------
-BINDFIELD                 Procedure(VIEW pView,String pName, *String pString)
-obj      &DriverViewClass
-  Code
-  obj &= pView{prop:object}
-  If obj &= null
-    ClaSetError(NoDriverSupport)
-    Return
-  End
-  If obj._logClarion then obj.Log('[CLAR]BINDFIELD(' & clip(pName) & ', string)').
-  obj.BindField(pName,pString)
-  Return
-
-!------------------------------------------------------------------------------------------------
-BINDFIELD                 Procedure(VIEW pView,String pName, *Cstring pCstring)
-obj      &DriverViewClass
-  Code
-  obj &= pView{prop:object}
-  If obj &= null
-    ClaSetError(NoDriverSupport)
-    Return
-  End
-  If obj._logClarion then obj.Log('[CLAR]BINDFIELD(' & clip(pName) & ', cstring)').
-  obj.BindField(pName,pCstring)
+  If obj._logClarion then obj.Log('[CLAR]BINDFIELD(' & clip(pName) & ', pTime)').
+  obj.BindField(pName,pTime)
   Return
 
 !------------------------------------------------------------------------------------------------
@@ -696,7 +670,7 @@ obj      &DriverFileClass
   Return
 
 !------------------------------------------------------------------------------------------------
-IMPORT            Procedure(FILE pFile, String pFileName, Long pOptions=0,Long pFormat=driver:csv)
+IMPORT            Procedure(FILE pFile, String pFileName, Long pOptions=0,Long pFlushEvery=0,Long pFormat=driver:csv)
 obj      &DriverFileClass
   code
   obj &= pFile{prop:object}
@@ -704,8 +678,8 @@ obj      &DriverFileClass
     ClaSetError(NoDriverSupport)
     Return
   End
-  If obj._logClarion then obj.Log('[CLAR]IMPORT(' & clip(pFileName) & ',' & pFormat & ',' & pOptions & ')').
-  obj.Import(pFileName,pOptions,pFormat)
+  If obj._logClarion then obj.Log('[CLAR]IMPORT(' & clip(pFileName) & ',' & pOptions & ',' & pFlushEvery & ',' & pFormat  & ')').
+  obj.Import(pFileName,pOptions,pFlushEvery,pFormat)
   Return
 
 !------------------------------------------------------------------------------------------------
@@ -1036,6 +1010,30 @@ obj      &DriverFileClass
   Return
 
 !------------------------------------------------------------------------------------------------
+RESULTFREE          Procedure(FILE pFile)
+obj      &DriverFileClass
+  Code
+  obj &= pFile{prop:object}
+  If obj &= null
+    ClaSetError(NoDriverSupport)
+    Return
+  End
+  obj.result.Free()
+  Return
+
+!------------------------------------------------------------------------------------------------
+RESULTFREE          Procedure(VIEW pView)
+obj      &DriverViewClass
+  Code
+  obj &= pView{prop:object}
+  If obj &= null
+    ClaSetError(NoDriverSupport)
+    Return
+  End
+  obj.result.Free()
+  Return
+
+!------------------------------------------------------------------------------------------------
 RESULTGET          Procedure(FILE pFile,BIGINT pRow)
   Code
   If pFile{prop:object} = ''
@@ -1352,6 +1350,21 @@ obj      &DriverFileClass
   Return
 
 !------------------------------------------------------------------------------------------------
+! all parameters passed by address
+SQLP             Procedure(FILE pFILE,String pSql,<*? pParm1>,<*? pParm2>,<*? pParm3>,<*? pParm4>,<*? pParm5>,<*? pParm6>,<*? pParm7>,<*? pParm8>,<*? pParm9>,<*? pParm10>,<*? pParm11>,<*? pParm12>,<*? pParm13>,<*? pParm14>,<*? pParm15>,<*? pParm16>,<*? pParm17>,<*? pParm18>,<*? pParm19>,<*? pParm20>)
+obj      &DriverFileClass
+  code
+  obj &= pFile{prop:object}
+  If obj &= null
+    ClaSetError(NoDriverSupport)
+    Return
+  End
+  If obj._logClarion then obj.Log('[CLAR]SQLP(' & clip(pSQL) & ')') .
+  obj.Sql(pSql,pParm1,pParm2,pParm3,pParm4,pParm5,pParm6,pParm7,pParm8,pParm9,pParm10,pParm11,pParm12,pParm13,pParm14,pParm15,pParm16,pParm17,pParm18,pParm19,pParm20)
+  Return
+
+!------------------------------------------------------------------------------------------------
+! some parameters passed by value
 SQL              Procedure(FILE pFILE,String pSql,<? pParm1>,<? pParm2>,<? pParm3>,<? pParm4>,<? pParm5>,<? pParm6>,<? pParm7>,<? pParm8>,<? pParm9>,<? pParm10>,<? pParm11>,<? pParm12>,<? pParm13>,<? pParm14>,<? pParm15>,<? pParm16>,<? pParm17>,<? pParm18>,<? pParm19>,<? pParm20>)
 obj      &DriverFileClass
   code
@@ -1404,7 +1417,7 @@ obj      &DriverFileClass
   Return
 
 !------------------------------------------------------------------------------------------------
-FromQueue         Procedure(FILE pFile,Queue pQueue)
+FromQueue         Procedure(FILE pFile,Queue pQueue, Long pOptions=0,Long pFlushEvery=0)
 obj      &DriverFileClass
   code
   obj &= pFile{prop:object}
@@ -1413,7 +1426,7 @@ obj      &DriverFileClass
     Return
   End
   If obj._logClarion then obj.Log('[CLAR]FROMQUEUE(queue)') .
-  obj.FromQueue(pQueue)
+  obj.FromQueue(pQueue,pOptions,pFlushEvery)
   Return
 
 !------------------------------------------------------------------------------------------------

@@ -225,7 +225,7 @@ ExplainStart                Procedure(),String,Derived
 _ExecuteSql                 Procedure(),Long,Derived
 _ExecuteSqlNoParms          Procedure(iResultSet pResult),Long,Derived   ! no prepare, or bind parms
 _ExecuteSqlToRecord         Procedure(),Long,Proc,Derived
-_ExecuteSql                 Procedure(StringTheory pSQL, iResultSet pResult, <? pParm1>,<? pParm2>,<? pParm3>,<? pParm4>,<? pParm5>,<? pParm6>,<? pParm7>,<? pParm8>,<? pParm9>,<? pParm10>,<? pParm11>,<? pParm12>,<? pParm13>,<? pParm14>,<? pParm15>,<? pParm16>,<? pParm17>,<? pParm18>,<? pParm19>,<? pParm20>),Long,Derived
+_ExecuteSql                 Procedure(StringTheory pSQL, iResultSet pResult, <*? pParm1>,<*? pParm2>,<*? pParm3>,<*? pParm4>,<*? pParm5>,<*? pParm6>,<*? pParm7>,<*? pParm8>,<*? pParm9>,<*? pParm10>,<*? pParm11>,<*? pParm12>,<*? pParm13>,<*? pParm14>,<*? pParm15>,<*? pParm16>,<*? pParm17>,<*? pParm18>,<*? pParm19>,<*? pParm20>),Long,Derived
 _ExecuteSqlToRecord         Procedure(Long pStmt,Long pWhichBuffer,Byte pErrIfNoRecord,Long pOpCode),Long,Proc,Virtual
 _ExecuteSqlToResults        Procedure(Long pStmt,iResultSet pResult),Virtual
 _ExecuteSqlToValue          Procedure(*Cstring pAns),Long,Derived
@@ -252,6 +252,7 @@ _PreparePut                 Procedure(),Long,Virtual
 _PrepareRandom              Procedure(String pFilter, BIGINT pOffset),Long,Virtual
 
 _GenerateSelect             Procedure(Long pOpcode),Derived
+_BindParameter              Procedure(Long pStmt,Long pCount, *? pParm, DriverParmBufferClass pParmBuffer, Long pCodePage),Virtual
 _BindParameters             Procedure(Long pStmt, DriverParmBufferClass pParmBuffer, Long pCodePage),Long,Virtual
 _BindField                  Procedure(Long pStmt,Long pCount, Long pAddress, DriverParmBufferClass pParmBuffer, Long pCodePage),Virtual
 _BindBlob                   Procedure(Long pStmt,Long pCount, DriverParmBufferClass pParmBuffer, Long pCodePage),Virtual
@@ -291,6 +292,7 @@ CREATEFIELD                 Procedure(*? pField1),Derived
 CREATEFIELD                 Procedure(String pName, String pType, String pConstraint),Derived
 CREATEKey                   Procedure(Key pKey),Derived
 CREATEKey                   Procedure(String pName, Long pOptions, *? pField1, *? pField2, <*? pField3>, <*? pField4>, <*? pField5>, <*? pField6>, <*? pField7>, <*? pField8>, <*? pField9>, <*? pField10>),Derived
+_CreateValidationBoolean    Procedure(),Long,Derived
 DECLARATION                 Procedure(Long pOptions=0),String,Derived
 DECLARATION                 Procedure(Key pKey,Long pOptions=0),String,Derived
 DUPLICATE                   Procedure(Key pKey),Derived,Long

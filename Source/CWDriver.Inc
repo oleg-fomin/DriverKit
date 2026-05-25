@@ -10,7 +10,7 @@
 ! For new Opcodes and FieldTypes see Driver.Inc                                                 !
 !------------------------------------------------------------------------------------------------
 
-Driver:Version  Equate('1.30')
+Driver:Version  Equate('1.34')
 
 !Region ----------  Equates ----------
 ! BIGINT: use this for now as a 52 bit integer. In later clarion versions could become a int64
@@ -33,6 +33,7 @@ Driver:Upsert           Equate(2)
 Driver:Add              Equate(4)
 Driver:Bin2Base64       Equate(8)
 Driver:Base64           Equate(8)
+Driver:Stream           Equate(16)
 
 Driver:LogSql           Equate(1)
 Driver:LogClarion       Equate(2)
@@ -103,10 +104,9 @@ BindField   Procedure(FILE pFile,String pName, *Long pLong),name('BINDlong'),Dll
 BindField   Procedure(FILE pFile,String pName, *Real pReal),name('BINDreal'),Dll(dll_mode)
 BindField   Procedure(FILE pFile,String pName, *String pString),name('BINDstring'),Dll(dll_mode)
 BindField   Procedure(FILE pFile,String pName, *Cstring pCstring),name('BINDcstring'),Dll(dll_mode)
-BindField   Procedure(VIEW pView,String pName, *Long pLong),name('BINDlongV'),Dll(dll_mode)
-BindField   Procedure(VIEW pView,String pName, *Real pReal),name('BINDrealV'),Dll(dll_mode)
-BindField   Procedure(VIEW pView,String pName, *String pString),name('BINDstringV'),Dll(dll_mode)
-BindField   Procedure(VIEW pView,String pName, *Cstring pCstring),name('BINDcstringV'),Dll(dll_mode)
+BindField   Procedure(FILE pFile,String pName, *Date pDate),name('BINDdate'),Dll(dll_mode)
+BindField   Procedure(FILE pFile,String pName, *Time pTime),name('BINDtime'),Dll(dll_mode)
+
 Bytes64     Procedure(FILE pFile),BIGINT,name('BYTES64'),Dll(dll_mode)
 CallOut     Procedure(FILE pFile,String pStoredProcedure,*? pParm1,<*? pParm2>,<*? pParm3>,<*? pParm4>,<*? pParm5>,<*? pParm6>,<*? pParm7>,<*? pParm8>,<*? pParm9>,<*? pParm10>,<*? pParm11>,<*? pParm12>,<*? pParm13>,<*? pParm14>,<*? pParm15>,<*? pParm16>,<*? pParm17>,<*? pParm18>,<*? pParm19>,<*? pParm20>),name('CALLOUT'),Dll(dll_mode)
 Call        Procedure(FILE pFile,String pStoredProcedure,<? pParm1>,<? pParm2>,<? pParm3>,<? pParm4>,<? pParm5>,<? pParm6>,<? pParm7>,<? pParm8>,<? pParm9>,<? pParm10>,<? pParm11>,<? pParm12>,<? pParm13>,<? pParm14>,<? pParm15>,<? pParm16>,<? pParm17>,<? pParm18>,<? pParm19>,<? pParm20>),name('CALLspVal'),Dll(dll_mode)
@@ -143,7 +143,7 @@ Get64       Procedure(FILE pFile,BIGINT pFilePointer),name('GET64'),Dll(dll_mode
 Get64       Procedure(FILE pFile,BIGINT pFilePointer, LONG pLength),name('GET64len'),Dll(dll_mode)
 GetRandom   Procedure(FILE pFile),name('GETRANDOMfile'),Dll(dll_mode)
 GetRandom   Procedure(FILE pFile,String pFilter),name('GETRANDOMfilefilter'),Dll(dll_mode)
-Import      Procedure(FILE pFile,STRING pFileName, Long pOptions=0,Long pFormat=driver:csv),name('IMPORTfile'),Dll(dll_mode)
+Import      Procedure(FILE pFile,STRING pFileName, Long pOptions=0,Long pFlushEvery=0,Long pFormat=driver:csv),name('IMPORTfile'),Dll(dll_mode)
 Intersect   Procedure(FILE pFile,<String pFilter>),name('INTERSECT'),Dll(dll_mode)
 JoinTable   Procedure(VIEW pView, FILE pParentFile, *KEY pKey, Byte pJoinType, *? pField1),name('JoinKey'),Dll(dll_mode)
 JoinTable   Procedure(VIEW pView, FILE pParentFile, *KEY pKey, Byte pJoinType, *? pField1, *? pField2, <*? pField3>, <*? pField4>, <*? pField5>, <*? pField6>, <*? pField7>, <*? pField8>, <*? pField9>, <*? pField10>),name('JoinKeyEx'),Dll(dll_mode)
@@ -173,6 +173,8 @@ RemoveField Procedure(FILE pFile,String pName),name('REMOVEfield'),Dll(dll_mode)
 RemoveKey   Procedure(FILE pFile,String pName),name('REMOVEkeyname'),Dll(dll_mode)
 RemoveKey   Procedure(KEY pKey),name('REMOVEkey'),Dll(dll_mode)
 Reopen      Procedure(FILE pFile,LONG pNewMode),name('REOPEN'),Dll(dll_mode)
+ResultFree  Procedure(FILE pFile),name('RESULTFREE'),Dll(dll_mode)
+ResultFree  Procedure(VIEW pView),name('RESULTFREEView'),Dll(dll_mode)
 ResultGet   Procedure(FILE pFile,BIGINT pRow),name('RESULTGET'),Dll(dll_mode)
 ResultGet   Procedure(VIEW pView,BIGINT pRow),name('RESULTGETview'),Dll(dll_mode)
 ResultGet   Procedure(FILE pFile,BIGINT pRow,Long pColumn),String,name('RESULTGETcell'),Dll(dll_mode)
@@ -199,11 +201,12 @@ Set         Procedure(KEY pKey, KEY pStart, *BIGINT pSetPointer),name('SET64keyk
 Set64       Procedure(FILE pFile,BIGINT pPointer),name('SET64ptra'),Dll(dll_mode)
 SetCustomType   Procedure(FILE pFILE,String pFieldLabel,iDriverField pCustom),name('SETCUSTOMTYPE'),Dll(dll_mode)
 Skip64      Procedure(FILE pFile,BIGINT pValue),name('SKIP64'),Dll(dll_mode)
+SQLP        Procedure(FILE pFILE,String pSql,<*? pParm1>,<*? pParm2>,<*? pParm3>,<*? pParm4>,<*? pParm5>,<*? pParm6>,<*? pParm7>,<*? pParm8>,<*? pParm9>,<*? pParm10>,<*? pParm11>,<*? pParm12>,<*? pParm13>,<*? pParm14>,<*? pParm15>,<*? pParm16>,<*? pParm17>,<*? pParm18>,<*? pParm19>,<*? pParm20>),name('SQLPFile'),Dll(dll_mode)
 SQL         Procedure(FILE pFILE,String pSql,<? pParm1>,<? pParm2>,<? pParm3>,<? pParm4>,<? pParm5>,<? pParm6>,<? pParm7>,<? pParm8>,<? pParm9>,<? pParm10>,<? pParm11>,<? pParm12>,<? pParm13>,<? pParm14>,<? pParm15>,<? pParm16>,<? pParm17>,<? pParm18>,<? pParm19>,<? pParm20>),name('SQLFile'),Dll(dll_mode)
 Subset      Procedure(FILE pFILE,*? pParm1,<*? pParm2>,<*? pParm3>,<*? pParm4>,<*? pParm5>,<*? pParm6>,<*? pParm7>,<*? pParm8>,<*? pParm9>,<*? pParm10>,<*? pParm11>,<*? pParm12>,<*? pParm13>,<*? pParm14>,<*? pParm15>,<*? pParm16>,<*? pParm17>,<*? pParm18>,<*? pParm19>,<*? pParm20>),name('SUBSET'),Dll(dll_mode)
 SuspendRelations   Procedure(FILE pFile),name('SUSPENDRELATIONS'),Dll(dll_mode)
 ToQueue     Procedure(FILE pFile,Queue pQueue),name('TOQUEUE'),Dll(dll_mode)
-FromQueue   Procedure(FILE pFile,Queue pQueue),name('FROMQUEUE'),Dll(dll_mode)
+FromQueue   Procedure(FILE pFile,Queue pQueue, Long pOptions=0,Long pFlushEvery=0),name('FROMQUEUE'),Dll(dll_mode)
 Union       Procedure(FILE pFile,<String pFilter>),name('UNION'),Dll(dll_mode)
 Update      Procedure(File pFile,String pFilter,*? pField1,String pValue1,<*? pField2>,<String pValue2>,<*? pField3>,<String pValue3>,<*? pField4>,<String pValue4>,<*? pField5>,<String pValue5>,<*? pField6>,<String pValue6>,<*? pField7>,<String pValue7>,<*? pField8>,<String pValue8>,<*? pField9>,<String pValue9>,<*? pField10>,<String pValue10>),Name('UPDATE'),Dll(dll_mode)
 Update      Procedure(Key pKey,*? pField1,String pValue1,<*? pField2>,<String pValue2>,<*? pField3>,<String pValue3>,<*? pField4>,<String pValue4>,<*? pField5>,<String pValue5>,<*? pField6>,<String pValue6>,<*? pField7>,<String pValue7>,<*? pField8>,<String pValue8>,<*? pField9>,<String pValue9>,<*? pField10>,<String pValue10>),Name('UPDATEKey'),Dll(dll_mode)
@@ -301,6 +304,7 @@ PROP:Collation          Equate(744Bh)
 PROP:CollationDb        Equate(744Ch)
 Prop:DatePicture        Equate(744Dh) ! used in EXPORT and IMPORT commands
 Prop:TimePicture        Equate(744Eh) ! used in EXPORT and IMPORT commands
+PROP:InStream           Equate(744Fh)
 
 !EndRegion: Properties
 !Region ----------  Errors ----------

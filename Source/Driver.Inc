@@ -61,6 +61,8 @@ driver:field            Equate(1)
 driver:constant         Equate(2)
 driver:bound            Equate(3)    ! label is bound using regular clarion BIND command, not BindField method
 driver:bindfield        Equate(4)    ! label is bound using BINDFIELD method
+driver:date             Equate(5)
+driver:time             Equate(6)
 
 driver:high             Equate(1)
 driver:low              Equate(2)
