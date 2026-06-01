@@ -639,6 +639,8 @@ _FreeParameterQueue        Procedure(),Virtual
 _GetSearchRankDirection    Procedure(),Byte,Virtual
 
 TranslateLabel             Procedure(*cstring pValue,*byte pReturnType,String pTokenString,Long pTokenPos),String,Proc,Virtual
+CheckTokenType             Procedure(*cstring pValue,*String pTokenString,Long pTokenPos),Virtual
+GetLabelType               Procedure(*Cstring pLabel, *Byte pType, *Byte pBoolean),Long,Virtual
 TranslateConstant          Procedure(*cstring pValue,*long pConstant),Long,Virtual
 
 TranslateNoCase            Procedure(*CString pExpr,*CString pColumn),String,Virtual
@@ -993,6 +995,7 @@ _CallExecutingCode         Procedure(),LONG,VIRTUAL
 FreeBuffer                 Procedure(),VIRTUAL
 SetCustomType              Procedure(String pFieldLabel,iDriverField pInterface),Long,Proc,Virtual
 TranslateLabel             Procedure(*cstring pValue,*byte pReturnType,String pTokenString,Long pTokenPos),String,Proc,Derived
+GetLabelType               Procedure(*Cstring pLabel, *Byte pType, *Byte pBoolean),Long,Derived
 TranslateReserved          Procedure(*cstring pColumn),String,Virtual
 WrapReserved               Procedure(*cstring pColumn),String,Virtual
 UnwrapReserved             Procedure(*Astring pColumn),String,Virtual
@@ -1137,6 +1140,7 @@ GET                        Procedure(BIGINT pFilePointer),VIRTUAL
 GET                        Procedure(BIGINT pFilePointer, LONG pLength),VIRTUAL
 GET                        Procedure(KEY pKey),VIRTUAL
 GET                        Procedure(KEY pKey, BIGINT pKeyPointer),VIRTUAL
+GETROW                     Procedure(FILE pFile,*? pField1, ? pValue1,<*? pField2>,<? pValue2>,<*? pField3>,<? pValue3>,<*? pField4>,<? pValue4>,<*? pField5>,<? pValue5>,<*? pField6>,<? pValue6>,<*? pField7>,<? pValue7>,<*? pField8>,<? pValue8>,<*? pField9>,<? pValue9>,<*? pField10>,<? pValue10>),Virtual
 HOLD                       Procedure(),VIRTUAL
 HOLD                       Procedure(LONG pSeconds),VIRTUAL
 MERGE                      Procedure(FILE pDestination, LONG pOptions),VIRTUAL
@@ -1563,6 +1567,7 @@ _withNodeTableName              Procedure(String pTableName),long,VIRTUAL
 _withNodeTableNameWalker        Procedure(ViewTreeType pNode, *cString pTableName),long,VIRTUAL
 _withNodeFieldLabelAlias        Procedure(String pAliasDotLabel),long,VIRTUAL
 _withNodeFieldLabelAliasWalker  Procedure(ViewTreeType pNode, *CString pAlias, *Cstring pLabel),long,VIRTUAL
+GetLabelType                    Procedure(*Cstring pLabel, *Byte pType, *Byte pBoolean),Long,Derived
 
 _countNodes                     Procedure(ViewTreeType pNode),Long,Virtual
 _CountFields                    Procedure(),Virtual

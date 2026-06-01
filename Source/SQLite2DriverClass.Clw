@@ -1316,6 +1316,7 @@ ans   cstring(255)
       End
     End
   End
+  If self._logConnections then self.Log('[CONN] Database Version. ' & self.DBVersionMajor & '.' & self.DBVersionMinor & '.' & self.DBVersionBuild) .
   Return
 
 !-----------------------------------------------------------------
@@ -3537,6 +3538,7 @@ poc         Long,Auto
     tablename =  self._sanitize(self.FullPathName,driver:sqlTable)
   End
   If Tablename = ''
+    If self._logClarion then self.Log('[ERR ] EXISTS Failed. TableName is blank').
     Self.SetError(BadNameErr)
     Return false
   End

@@ -2666,6 +2666,7 @@ Label      Cstring(4096)
       end
       Return self._genparm(self._ParameterCount)
     End
+    self.CheckTokenType(self.ValueQueue.Value,pTokenString,pTokenPos)
     Return self.ValueQueue.Value
   !!!endregion
   !!!region token:expression
@@ -2736,21 +2737,97 @@ Label      Cstring(4096)
   Return ''
 
 !-----------------------------------------------------------------
+DriverBaseClass.CheckTokenType  Procedure(*cstring pValue,*String pTokenString,Long pTokenPos)
+relatedToken  string(6)
+rt            Long ,Auto
+FieldType     Byte ,Auto
+FieldBoolean  Byte ,Auto
+  code
+  Case self._ParseContext
+  of driver:filter
+    if pTokenpos >= 12
+      relatedtoken = sub(pTokenString,pTokenpos-6,6)    ! previous token
+      If relatedToken[1] = token:condition              ! is a conditional
+        rt = sub(relatedToken,2,4)
+        Get(self.ConditionQueue,rt)                     ! get the condition
+        case self.ConditionQueue.Condition[1]
+        of '>' orof '<' orof '=' orof '<>' orof '<=' orof '>='                       !
+          relatedtoken = sub(pTokenString,pTokenpos-12,6)
+          If relatedToken[1] = token:label                ! see if being compared to a label
+            rt = sub(relatedToken,2,4)
+            Get(self.LabelQueue,rt)
+            do GetLabelType                               ! see if the type of the label should change this value
+          End
+        End
+      End
+    End
+    If len(pTokenString) >= pTokenpos + 12               ! do it all again, but in the other direction.
+      relatedtoken = sub(pTokenString,pTokenpos+6,6)
+      If relatedToken[1] = token:condition
+        rt = sub(relatedToken,2,4)
+        Get(self.ConditionQueue,rt)
+        case self.ConditionQueue.Condition[1]
+        of '>' orof '<' orof '=' orof '<>' orof '<=' orof '>='
+          relatedtoken = sub(pTokenString,pTokenpos+12,6)
+          If relatedToken[1] = token:label
+            rt = sub(relatedToken,2,4)
+            Get(self.LabelQueue,rt)
+            do GetLabelType
+          End
+        End
+      End
+    End
+  End
+
+GetLabelType  routine
+  If self.GetLabelType(self.LabelQueue.Label,FieldType,FieldBoolean) = Driver:ok
+    Case FieldType
+    of ClaDATE
+      pValue = self._TranslateDateSql(pValue)
+    of ClaTIME
+      pValue = self._TranslateTimeSql(pValue)
+    Else
+      If FieldBoolean
+        pValue = self.TranslateBoolean(pValue)
+      End
+    End
+  End
+
+!-----------------------------------------------------------------
+DriverBaseClass.GetLabelType   Procedure(*Cstring pLabel, *Byte pType, *Byte pBoolean)
+  code
+  Return Driver:notok
+
+!-----------------------------------------------------------------
+DriverFileClass.GetLabelType   Procedure(*Cstring pLabel, *Byte pType, *Byte pBoolean)
+  code
+  If self._WithFieldLabeled(pLabel) = Driver:ok or self._WithFieldNamed(pLabel) = driver:ok
+    pType = self.fields.type
+    pBoolean = self.fields.boolean
+    Return Driver:ok
+  End
+  Return Driver:notok
+
+!-----------------------------------------------------------------
 !!!todo - optimize filter expression Date(DateTime) = n where only the Date part of the DateTime is being considered. This could be changed to avoid an in-row function.
 DriverBaseClass._Optimize                Procedure(String pFunction,String pExpression)
   code
+  PushErrors()
   Case upper(pFunction)
   Of 'UPPER'
     If ''''& Evaluate(pExpression) & '''' = pExpression
       pExpression = Upper(pExpression)
+      PopErrors()
       Return pExpression
     End
   Of 'LOWER'
     If ''''& Evaluate(pExpression) & '''' = pExpression
       pExpression = lower(pExpression)
+      PopErrors()
       Return pExpression
     End
   End
+  PopErrors()
   Return clip(pFunction) & '(' & clip(pExpression) & ')'
 
 !-----------------------------------------------------------------
@@ -3292,8 +3369,10 @@ r         long
   Code
   If pNumParms = 2
     mode = Match:Wild
-  else
+  Else
+    PushErrors()
     mode = Evaluate(self._ExpandExpression(pExParm[3]))
+    PopErrors()
     If band(mode,Match:NoCase)
       nocase = true
       mode = band(mode,0Fh)
@@ -3777,13 +3856,16 @@ DriverBaseClass.TranslateRegularExpression    Procedure(*CString pExpr,*CString 
 DriverBaseClass.TranslateVariable  Procedure(*cstring pValue)
 v   cstring(4096)
   code
+  PushErrors()
   v = clip(Evaluate(pValue))
   If Errorcode()
     ! ERROR BAD FILTER, VARIABLE NAME
     !self.SetError(FileSystemErr)
     !self.SetFileError(BadFilterErr,'BadFilterErr: Unable to Evaluate ' & pValue)
+    PopErrors()
     Return pValue
   End
+  PopErrors()
   If Numeric(v)
     Return v
   else
@@ -5826,9 +5908,10 @@ b3  byte
     pAddr += 4
   Elsif band(b,64) > 0                                         ! 64 bit is set, so read next 2 bytes as a short
     pAddr += 1                                                 ! add the 1 for the peek at the top of this procedure
-    peek(pAddr,ush)
+    peek(pAddr,b1)
+    peek(pAddr+1,b2)
+    lg =  bshift(b1,8) + b2
     pAddr += 2
-    lg = (band(lg,31) * 65536) + ush                           ! max 2,031,616 + sh
   Elsif band(b,32) > 0                                         ! 32 bit is set, so read next 1 byte and use low 5 bits of the first byte
     pAddr += 1                                                 ! add the 1 for the peek at the top of this procedure
     peek(pAddr,b)
@@ -6033,7 +6116,6 @@ InOveredGroup   Long
     If Band(pNode.Attribute,ClaAttrName)
       pNode.Name = self._GetVariableLengthString(pAddr)
     End
-
     pNode.Over = 0
     HighBit = 0
     If Band(pNode.Attribute,ClaAttrOver)
@@ -6646,8 +6728,6 @@ column    Cstring(128)
 node      &FieldGroupType
 v         Cstring(4096)
 e         Cstring(4096)
-relatedToken  string(6)
-rt            Long ,Auto
   code
   ! lookup variable name in table, and replace if necessary.
   ! If the variable is not in a table, then EVALUATE it and turn it into a fixed value.
@@ -6704,7 +6784,6 @@ rt            Long ,Auto
 
   pReturnType = driver:bound
   ! not a column name, try evaluating it
-
   v = clip(Evaluate(pValue))
   If Errorcode() = NoError
     Case band(self._ParseContext, 01111111b)
@@ -6719,7 +6798,7 @@ rt            Long ,Auto
     OrOf driver:expression
       If Numeric(v)
         pReturnType = driver:constant
-        do CheckBoundType
+        self.CheckTokenType(v,pTokenString,pTokenPos)         !!!
         Return v
       Else
         pReturnType = driver:parameter
@@ -6734,57 +6813,6 @@ rt            Long ,Auto
   self.SetError(NoError)
   pReturnType = driver:unknown
   Return self._Sanitize(pValue,self._ParseContext)   ! assume the user knows what they're doing....but there are limits...
-
-CheckBoundType  Routine
-  Case self._ParseContext
-  of driver:filter
-    if pTokenpos >= 12
-      relatedtoken = sub(pTokenString,pTokenpos-6,6)
-      If relatedToken[1] = token:condition
-        rt = sub(relatedToken,2,4)
-        Get(self.ConditionQueue,rt)
-        case self.ConditionQueue.Condition[1]
-        of '>' orof '<' orof '='
-          relatedtoken = sub(pTokenString,pTokenpos-12,6)
-          If relatedToken[1] = token:label
-            rt = sub(relatedToken,2,4)
-            Get(self.LabelQueue,rt)
-            do GetLabelType
-          End
-        End
-      End
-    End
-    If len(pTokenString) >= pTokenpos + 12
-      relatedtoken = sub(pTokenString,pTokenpos+6,6)
-      If relatedToken[1] = token:condition
-        rt = sub(relatedToken,2,4)
-        Get(self.ConditionQueue,rt)
-        case self.ConditionQueue.Condition[1]
-        of '>' orof '<' orof '='
-          relatedtoken = sub(pTokenString,pTokenpos+12,6)
-          If relatedToken[1] = token:label
-            rt = sub(relatedToken,2,4)
-            Get(self.LabelQueue,rt)
-            do GetLabelType
-          End
-        End
-      End
-    End
-  End
-
-GetLabelType  routine
-  If self._WithFieldLabeled(self.LabelQueue.Label) = Driver:ok or self._WithFieldNamed(self.LabelQueue.Label) = driver:ok
-    case self.fields.Type
-    of ClaDATE
-      v = self._TranslateDateSql(v)
-    of ClaTIME
-      v = self._TranslateTimeSql(v)
-    Else
-      If self.fields.Boolean
-        v = self.TranslateBoolean(v)
-      End
-    End
-  End
 
 ModColumn  routine
   Case self.fields.type
@@ -7696,18 +7724,12 @@ DriverBaseClass.BINDFIELD                     Procedure(String pName,*Long pLong
   End
   self.BindQueue.Name = upper(clip(pName))
   Get(self.BindQueue,self.BindQueue.Name)
+  Clear(self.BindQueue)
+  self.BindQueue.Name = upper(clip(pName))
+  self.BindQueue.lg &= pLong
   If Errorcode()
-    clear(self.BindQueue)
-    self.BindQueue.Name = upper(clip(pName))
-    self.BindQueue.lg &= pLong
-    Add(self.BindQueue)
+    Add(self.BindQueue,self.BindQueue.Name)
   Else
-    self.BindQueue.rl &= null
-    self.BindQueue.st &= null
-    self.BindQueue.cst &= null
-    self.BindQueue.dt &= null
-    self.BindQueue.tm &= null
-    self.BindQueue.lg &= pLong
     Put(self.BindQueue)
   End
   Return
@@ -7720,18 +7742,12 @@ DriverBaseClass.BINDFIELD                     Procedure(String pName,*Real pReal
   End
   self.BindQueue.Name = upper(clip(pName))
   Get(self.BindQueue,self.BindQueue.Name)
+  Clear(self.BindQueue)
+  self.BindQueue.Name = upper(clip(pName))
+  self.BindQueue.rl &= pReal
   If Errorcode()
-    clear(self.BindQueue)
-    self.BindQueue.Name = upper(clip(pName))
-    self.BindQueue.rl &= pReal
-    Add(self.BindQueue)
+    Add(self.BindQueue,self.BindQueue.Name)
   Else
-    self.BindQueue.lg &= null
-    self.BindQueue.st &= null
-    self.BindQueue.cst &= null
-    self.BindQueue.dt &= null
-    self.BindQueue.tm &= null
-    self.BindQueue.rl &= pReal
     Put(self.BindQueue)
   End
   Return
@@ -7744,18 +7760,12 @@ DriverBaseClass.BINDFIELD                     Procedure(String pName,*String pSt
   End
   self.BindQueue.Name = upper(clip(pName))
   Get(self.BindQueue,self.BindQueue.Name)
+  Clear(self.BindQueue)
+  self.BindQueue.Name = upper(clip(pName))
+  self.BindQueue.st &= pString
   If Errorcode()
-    clear(self.BindQueue)
-    self.BindQueue.Name = upper(clip(pName))
-    self.BindQueue.st &= pString
-    Add(self.BindQueue)
+    Add(self.BindQueue,self.BindQueue.Name)
   Else
-    self.BindQueue.lg &= null
-    self.BindQueue.rl &= null
-    self.BindQueue.cst &= null
-    self.BindQueue.dt &= null
-    self.BindQueue.tm &= null
-    self.BindQueue.st &= pString
     Put(self.BindQueue)
   End
   Return
@@ -7768,18 +7778,12 @@ DriverBaseClass.BINDFIELD                     Procedure(String pName,*Cstring pC
   End
   self.BindQueue.Name = upper(clip(pName))
   Get(self.BindQueue,self.BindQueue.Name)
+  Clear(self.BindQueue)
+  self.BindQueue.Name = upper(clip(pName))
+  self.BindQueue.cst &= pCstring
   If Errorcode()
-    clear(self.BindQueue)
-    self.BindQueue.Name = upper(clip(pName))
-    self.BindQueue.cst &= pCstring
-    Add(self.BindQueue)
+    Add(self.BindQueue,self.BindQueue.Name)
   Else
-    self.BindQueue.lg &= null
-    self.BindQueue.rl &= null
-    self.BindQueue.st &= null
-    self.BindQueue.dt &= null
-    self.BindQueue.tm &= null
-    self.BindQueue.cst &= pCstring
     Put(self.BindQueue)
   End
   Return
@@ -7792,18 +7796,12 @@ DriverBaseClass.BINDFIELD                     Procedure(String pName,*Time pTime
   End
   self.BindQueue.Name = upper(clip(pName))
   Get(self.BindQueue,self.BindQueue.Name)
+  Clear(self.BindQueue)
+  self.BindQueue.Name = upper(clip(pName))
+  self.BindQueue.tm &= pTime
   If Errorcode()
-    clear(self.BindQueue)
-    self.BindQueue.Name = upper(clip(pName))
-    self.BindQueue.tm &= pTime
-    Add(self.BindQueue)
+    Add(self.BindQueue,self.BindQueue.Name)
   Else
-    self.BindQueue.lg &= null
-    self.BindQueue.rl &= null
-    self.BindQueue.st &= null
-    self.BindQueue.cst &= null
-    self.BindQueue.dt &= null
-    self.BindQueue.tm &= pTime
     Put(self.BindQueue)
   End
   Return
@@ -7815,18 +7813,12 @@ DriverBaseClass.BINDFIELD                     Procedure(String pName,*Date pDate
   End
   self.BindQueue.Name = upper(clip(pName))
   Get(self.BindQueue,self.BindQueue.Name)
+  Clear(self.BindQueue)
+  self.BindQueue.Name = upper(clip(pName))
+  self.BindQueue.dt &= pDate
   If Errorcode()
-    clear(self.BindQueue)
-    self.BindQueue.Name = upper(clip(pName))
-    self.BindQueue.dt &= pDate
-    Add(self.BindQueue)
+    Add(self.BindQueue,self.BindQueue.Name)
   Else
-    self.BindQueue.lg &= null
-    self.BindQueue.rl &= null
-    self.BindQueue.st &= null
-    self.BindQueue.cst &= null
-    self.BindQueue.tm &= null
-    self.BindQueue.dt &= pDate
     Put(self.BindQueue)
   End
   Return
@@ -8870,6 +8862,7 @@ DriverFileClass.FREESTATE        PROCEDURE(Long pState)
 x  Long,Auto
 y  Long,Auto
   code
+  If self.state &= null then Return.
   If pState = 0
     Loop x = 1 to Records(self.state)
       Get(self.state,x)
@@ -8932,7 +8925,6 @@ FreeOneState  routine
 !   Optionally stores Blobs as well.
 ! Returns an id which identifies this state.
 ! Derived Classes call this parent first, which adds the queue record. They then add supplemental information, and do a PUT
-!!!todo - review properties saved to see if any new ones have been added.
 DriverFileClass.GETSTATE         PROCEDURE(Long pSaveBlob)!,LONG,VIRTUAL
 x    Long,Auto
 e    Long,Auto
@@ -10006,6 +9998,10 @@ DriverFileClass.GET              PROCEDURE(KEY pKey, BIGINT pKeyPointer)
   Return
 
 !-----------------------------------------------------------------
+DriverFileClass.GETROW           PROCEDURE(FILE pFile,*? pField1, ? pValue1,<*? pField2>,<? pValue2>,<*? pField3>,<? pValue3>,<*? pField4>,<? pValue4>,<*? pField5>,<? pValue5>,<*? pField6>,<? pValue6>,<*? pField7>,<? pValue7>,<*? pField8>,<? pValue8>,<*? pField9>,<? pValue9>,<*? pField10>,<? pValue10>)
+  Code
+
+!-----------------------------------------------------------------
 DriverFileClass.HOLD             PROCEDURE()
   Code
   self.SetError(NoDriverSupport)
@@ -10269,7 +10265,7 @@ Len       Long,Auto
     Loop x = 1 to Records(self.state.BindQueue)
       Get(self.state.BindQueue,x)
       self.BindQueue = self.state.BindQueue
-      Add(self.BindQueue)
+      Add(self.BindQueue,self.BindQueue.Name)
     End
   End
 
@@ -15042,11 +15038,8 @@ NoAlias  Byte ,Auto
     Self._UpdateSql(filter.getvalue(),pField1,pValue1,pField2,pValue2,pField3,pValue3,pField4,pValue4,pField5,pValue5,pField6,pValue6,pField7,pValue7,pField8,pValue8,pField9,pValue9,pField10,pValue10)
     self._NoAlias = NoAlias
     If Errorcode() then return.
-    !self.trace('es3')
     If self._executeSql() = driver:ok
     End
-    !self.trace('es4 ' & errorcode())
-
   Else
     Self.SetError(InvKeyErr) !!!todo - not sure about this error code. Should never get here though.
   End
@@ -15755,6 +15748,26 @@ obj      &DriverFileClass
     End
   End
   Return
+
+!-----------------------------------------------------------------
+DriverViewClass.GetLabelType   Procedure(*Cstring pLabel, *Byte pType, *Byte pBoolean)
+ViewFile &file
+x       long,Auto
+p       long,Auto
+obj      &DriverFileClass
+  code
+  p = self.GetProp:Files(0)
+  Loop x = 1 to p
+    ViewFile &= self.GetProp:File(x)
+    If ViewFile &= null then cycle.
+    obj &= ViewFile{prop:object}
+    If not obj &= null
+      If obj.GetLabelType(pLabel,pType,pBoolean) = Driver:ok
+        Return Driver:ok
+      End
+    End
+  End
+  Return Driver:notok
 
 !-----------------------------------------------------------------
 DriverViewClass.Next                      Procedure()
@@ -17747,7 +17760,7 @@ ShadowBufferPrimed  Byte
     rows = self.Result.Rows()
     ! If doing a PREVIOUS or NEXT, and the next row is in the result set, then just read it from there.
     savResultRow = self.ResultRow
-    !self.trace('top of loop pOpcode=' & pOpcode & ' self._setdirection=' & self._setdirection & ' self.ResultRow=' & self.ResultRow  & ' rows=' & rows &  'err=' & errorcode())
+    !self.trace('top of loop pOpcode=' & pOpcode & ' self._setdirection=' & self._setdirection & ' self.ResultRow=' & self.ResultRow  & ' rows=' & rows &  ' err=' & errorcode())
     Case pOpcode
     Of Opcode:NEXT
       If self._setdirection = Opcode:NEXT then self.ResultRow += 1 Else self.ResultRow -= 1 .
@@ -17784,7 +17797,9 @@ ShadowBufferPrimed  Byte
         End
       End
       self._Set(pOpcode)         ! does prepare
-      If Errorcode() then break.
+      If Errorcode()
+        break
+      End
     End
     ! first check results to see if a row is waiting there.
     rows = self.Result.Rows()
@@ -17947,11 +17962,11 @@ DriverViewSQLClass.RESET                     Procedure(String pPosition)
 hash  String(16),Auto
   code
   ! resetting on position. But possibly resetting into current result set. If so can avoid a request to the backend.
-  parent.Reset(pPosition)                         ! populates pPosition primary key fields into buffers for all tables
+  parent.Reset(pPosition)                          ! populates pPosition primary key fields into buffers for all tables
   If self._SetPropsCache = self._PropsCache
     self._justReset = driver:ResetToBufferRow
     hash = self.TempStr.MD5(st:EncNone,pPosition,self._PosLen )
-    self.ResultRow = self.Result.GetRowWithPosition(hash)
+    self.ResultRow = self.Result.GetRowWithPosition(hash)        ! check if reseting to somewhere in the existing result
     If self.ResultRow then Return.
   End
   Self.Reset()
@@ -17973,6 +17988,7 @@ x       Long,Auto
     obj &= (self.FileObject[x])
     If obj &= null then cycle.
     obj._GetBuffer = driver:shadow
+    If self._logClarion or self._logSQL then self.Log('[CLAR]GET(pk) Into Shadow Buffer' ).
     obj.Get(obj.primarykey)
     obj._GetBuffer = driver:buffer
   End
