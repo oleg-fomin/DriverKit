@@ -52,6 +52,13 @@ RestoreState          Procedure(Long pStateId),Virtual
 FreeState             Procedure(Long pStateId),Virtual
                     End
 !==================================================================================================
+! Declare an interface that can be used as a custom error handler
+iError              INTERFACE
+TakeErrorFile         Procedure(DriverFileSQLClass pFile),Virtual
+TakeErrorView         Procedure(DriverViewSQLClass pView),Virtual
+                    END
+
+!==================================================================================================
 COUNT_T         EQUATE(UNSIGNED)
 AINDEX_T        EQUATE(UNSIGNED)
 SIZE_T          EQUATE(UNSIGNED)

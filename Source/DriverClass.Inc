@@ -356,6 +356,7 @@ DriverBaseClass          Class(), Type, Module('DriverClass.Clw'),Link('DriverCl
 ! -----------------------------------------------------------------------------
 rid                        Long
 ConnectionPool             &DriverConnectionPoolClass
+ErrorHook                  &iError
 dbHandle                   Long
 
 _Result                    &DriverResultSetClass    ! This is the class (not the interface). This isn't changed by saving state
@@ -532,7 +533,7 @@ LoadLogging                Procedure(),Virtual
 GetAnyType                 Procedure(*? pField),Long,Virtual
 GetAnySize                 Procedure(*? pField),Long,Virtual
 GetAnyAddress              Procedure(*? pField),Long,Virtual
-FormatDate                 Procedure(*Date pDate),String,Virtual
+FormatDate                 Procedure(*Date pDate,String pPic),String,Virtual
 FormatDate                 Procedure(Long pMonth,Long pDay,Long pYear),String,Virtual
 FormatTime                 Procedure(Time pTime),String,Virtual
 FormatTimeStamp            Procedure(String pStr,Long pGroupPattern),String,Virtual
@@ -605,7 +606,7 @@ TranslateBoolean           Procedure(*Cstring pValue),String,Virtual
 TranslateChr               Procedure(*Cstring pFunc, *CString pParms,string pTokenString,*Long pTokenPos,*Cstring[] pExParm,Long pNumParms),String,Virtual
 TranslateClip              Procedure(*Cstring pFunc, *CString pParms,string pTokenString,*Long pTokenPos,*Cstring[] pExParm,Long pNumParms),String,Virtual
 TranslateDate              Procedure(*Cstring pFunc, *CString pParms,string pTokenString,*Long pTokenPos,*Cstring[] pExParm,Long pNumParms),String,Virtual
-_TranslateDateSql          Procedure(String pValue),String,Virtual
+_TranslateDateSql          Procedure(String pValue, Byte pConditionLoaded),String,Virtual
 _TranslateDateSql          Procedure(*CString pField, String pMonth, String pDay, String pYear, Byte pLabelType, *Cstring pCond),String,Virtual
 TranslateDay               Procedure(*Cstring pFunc, *CString pParms,string pTokenString,*Long pTokenPos,*Cstring[] pExParm,Long pNumParms),String,Virtual
 _TranslateDaySQL           Procedure(*CString pField),String,Virtual
@@ -711,6 +712,8 @@ GetPROP:Distinct           Procedure(),STRING,VIRTUAL
 SetPROP:Distinct           Procedure(BYTE pDistinct),VIRTUAL
 GetPROP:Driver             Procedure(),STRING,VIRTUAL             ! Get name of file driver
 GetPROP:DriverVersion      Procedure(),STRING,VIRTUAL
+GetProp:ErrorHook          Procedure(),STRING,VIRTUAL
+SetProp:ErrorHook          Procedure(Long pValue),VIRTUAL
 GetPROP:Fields             Procedure(Long pIndex),STRING,VIRTUAL
 GetPROP:FetchSize          Procedure(),STRING,VIRTUAL  ! Get the pagesize parameter for the last BUFFER statement executed
 SetPROP:FetchSize          Procedure(Long pValue),VIRTUAL  ! Set the pagesize parameter
@@ -900,7 +903,7 @@ __FILESTATEEND          Byte
 Construct                Procedure()
 Destruct                 Procedure(),VIRTUAL
 
-Init                     Procedure(FILE pFile, Long pForce=false),VIRTUAL
+Init                     Procedure(FILE pFile, Long pForce=false, Long pRblock=true),VIRTUAL
 ReplaceObject            Procedure(Long pOldObjectAddress),VIRTUAL
 SetError                 Procedure(LONG pError),DERIVED
 SetFileError             Procedure(String pError, String pMessage),DERIVED
@@ -1063,13 +1066,16 @@ CREATEDB                   Procedure(String pDatabaseName, String pOptions),VIRT
 CREATETABLE                Procedure(),VIRTUAL
 CreateParentTables         Procedure(),VIRTUAL
 _CREATETABLE               Procedure(),VIRTUAL            ! splitting this into a separate method allows it to be called without the parent checks.
+AppendOptKeyWhere          Procedure(StringTheory pStr, Long pPrimary, Long pIncludeWhere, String pSeparator),Virtual
+_CreateField               Procedure(),VIRTUAL
+_CreateBlob                Procedure(),VIRTUAL
 _CreateValidationBoolean   Procedure(),Long,VIRTUAL
 _CreateValidation          Procedure(),VIRTUAL
 _CreateDefault             Procedure(Long pHasDefault, Long pType, String pDefault),VIRTUAL
 _CreateForeignKeys         Procedure(),VIRTUAL
 CLONE                      Procedure(String pNewTableName,Long pOptions),VIRTUAL
-CREATEFIELD                Procedure(*? pField1),VIRTUAL
-CREATEFIELD                Procedure(String pName, String pType, String pConstraint),VIRTUAL
+!CREATEFIELD                Procedure(*? pField1),VIRTUAL
+!CREATEFIELD                Procedure(String pName, String pType, String pConstraint),VIRTUAL
 CREATEKEY                  Procedure(KEY pKey),VIRTUAL
 CREATEKEY                  Procedure(String pName, Long pOptions, *? pField1, *? pField2, <*? pField3>, <*? pField4>, <*? pField5>, <*? pField6>, <*? pField7>, <*? pField8>, <*? pField9>, <*? pField10>),VIRTUAL
 CREATERELATIONS            Procedure(),VIRTUAL
@@ -1392,8 +1398,8 @@ __SQLSTATEEND             Byte
 
 CONSTRUCT                 Procedure()
 DESTRUCT                  Procedure(),VIRTUAL
-INIT                      Procedure(FILE pFile, Long pForce=false),DERIVED
-
+!INIT                      Procedure(FILE pFile, Long pForce=false, Long pRblock=true),DERIVED
+SetError                  Procedure(LONG pError),DERIVED
 SetDriverOption           Procedure(String pOption, String pValue),STRING,Derived
 _ExecuteSelect            Procedure(),VIRTUAL
 !_BindOffset               Procedure(),VIRTUAL
@@ -1676,7 +1682,7 @@ _OrderParmNumber                Long
 
 Construct                       Procedure()
 Destruct                        Procedure(),Virtual
-
+SetError                        Procedure(LONG pError),DERIVED
 GetPROP:Database                Procedure(),STRING,DERIVED         ! Get database name from connection string
 GetPROP:Server                  Procedure(),STRING,DERIVED         ! Get server name from connection string
 GetPROP:User                    Procedure(),STRING,DERIVED         ! Get user name from connection string

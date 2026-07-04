@@ -203,7 +203,7 @@ __SQLiteSTATEEND            Byte
 ! -------
 CONSTRUCT                   Procedure()
 DESTRUCT                    Procedure(),Virtual
-Init                        Procedure(FILE pFile, Long pForce=false),Derived
+Init                        Procedure(FILE pFile, Long pForce=false, Long pRBlock=true),Derived
 LoadLogging                 Procedure(),Derived
 _parseFields                Procedure(Long pAddr),Derived
 _ParseDefaultDefault        Procedure(FieldGroupType pNode),Derived
@@ -288,8 +288,10 @@ CLEARPROPS                  Procedure(),Derived
 CLOSE                       Procedure(),Derived
 COPY                        Procedure(String pNewFileName, Long pOptions),Derived
 _CREATETABLE                Procedure(),Derived
-CREATEFIELD                 Procedure(*? pField1),Derived
-CREATEFIELD                 Procedure(String pName, String pType, String pConstraint),Derived
+!CREATEFIELD                 Procedure(*? pField1),Derived
+!CREATEFIELD                 Procedure(String pName, String pType, String pConstraint),Derived
+_CreateField                Procedure(),DERIVED
+_CreateBlob                 Procedure(),DERIVED
 CREATEKey                   Procedure(Key pKey),Derived
 CREATEKey                   Procedure(String pName, Long pOptions, *? pField1, *? pField2, <*? pField3>, <*? pField4>, <*? pField5>, <*? pField6>, <*? pField7>, <*? pField8>, <*? pField9>, <*? pField10>),Derived
 _CreateValidationBoolean    Procedure(),Long,Derived

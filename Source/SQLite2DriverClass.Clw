@@ -123,10 +123,10 @@ DriverFileSQLite2Class.Destruct  Procedure()
   Return
 
 !-----------------------------------------------------------------
-DriverFileSQLite2Class.Init   Procedure(FILE pFile, Long pForce=false)
+DriverFileSQLite2Class.Init   Procedure(FILE pFile, Long pForce=false, Long pRBlock=true)
   code
   self.ConnectionPool &= ConnectionPoolSQlite2
-  parent.Init(pFile,pForce)
+  parent.Init(pFile,pForce, pRBlock)
   Return
 
 !-----------------------------------------------------------------
@@ -2091,7 +2091,7 @@ hi        Long
           self.SetErrorSqlite(result,'[p088]')
         End
       Else
-        sx = self.FormatDate(dt)
+        sx = self.FormatDate(dt,self.DatePicture)
         len = len(clip(sx))
         If self._logBind then self.Log('[BIND][sb31]' & pCount & ' (date)' & sx).
         pParmBuffer._SetParmBuffer(pCount,address(sx),len, SQLITE_TEXT, 0, driver:AnsiToUtf8+driver:Dispose,self.codepage)
@@ -3079,19 +3079,6 @@ allSql        StringTheory
         primaryset = self.keys.component[1]
       End
     End
-!    If self.keys.KeyCase = driver:Nocase
-!      Loop x = 1 to self.Keys.components
-!        If self._WithField(self.keys.component[x]) = driver:ok
-!          case self.fields.Type
-!          Of ClaSTRING
-!          OrOf ClaCSTRING
-!          OrOf ClaPSTRING
-!            primaryextra = True
-!            Break
-!          End
-!        End
-!      End
-!    End
   End
   ! now we need to create the table.
   self.SqlCode.SetValue('CREATE TABLE ' & self._sanitize(self.FullPathName,driver:sqlTable) & ' (<13,10>' )
@@ -3104,88 +3091,9 @@ allSql        StringTheory
     If comma
       self.SqlCode.append(',<13,10>')
     End
-    self.SqlCode.append(self.Fields.column)
     comma = true
-    If self.Fields.SqlType
-      self.SqlCode.append(' ' & self.Fields.SqlType)
-    ElsIf not self.Fields.Interface &= Null
-      self.SqlCode.append(' ' & self.Fields.interface.GetSQLType())
-    ElsIf self.Fields.DimProduct > 1
-      self.SqlCode.append(' TEXT COLLATE BINARY')
-    Else
-      Case self.Fields.Type
-      of ClaBYTE
-      orof ClaSHORT
-      orof ClaUSHORT
-      orof ClalONG
-      orof ClaUlONG
-        self.SqlCode.append(' INTEGER')
-      of ClaDATE
-        self.SqlCode.append(' DATE')  ! will affinity to Numeric, but useful to distinguish.  will be stored as yyyy-mm-dd
-      of ClaTIME
-        self.SqlCode.append(' TIME')  ! will affinity to Numeric, but useful to distinguish   will be stored as hh:mm:ss.sss
-      of ClaDECIMAL
-      orof ClaPDECIMAL
-        self.SqlCode.append(' NUMERIC(' & self.Fields.DecimalSize & ',' & self.Fields.DecimalPlaces & ')')
-      of ClaREAL
-      orof ClaSREAL
-        self.SqlCode.append(' REAL')
-      of ClaCSTRING
-        self.SqlCode.append(' TEXT')
-      of ClaSTRING
-        If self.Fields.SqlTimeStamp
-          self.SqlCode.append(' DATETIME')    ! will affinity to Numeric, but useful to distinguish will be stored as yyyy-mm-ddThh:mm:ss.sss
-        Elsif self.Fields.uuid = 8
-          self.SqlCode.append(' TEXT')
-        ElsIf self.Fields.Binary = true
-          self.SqlCode.append(' BLOB')
-        Else
-          self.SqlCode.append(' TEXT')
-        End
-      of ClaPSTRING
-        If self.Fields.Binary = true
-          self.SqlCode.append(' BLOB')
-        Else
-          self.SqlCode.append(' TEXT')
-        End
-      End
-    End
-    If self.Fields.Collate
-      self.SqlCode.append(' COLLATE ' & self.Fields.Collate)
-    Else
-      case self.Fields.Type
-      of ClaString
-      orof ClaPString
-      orof ClaCString
-        If self.fields.binary or self.Fields.SqlTimeStamp or self.Fields.uuid = 8
-          self.SqlCode.append(' COLLATE BINARY')
-        ElsIf self.fields.fieldcase = driver:NoCase
-          self.SqlCode.append(' COLLATE NOCASE')
-        ElsIf self.fields.fieldcase = driver:Case
-          case self.Fields.Type
-          of ClaCString
-            self.SqlCode.append(' COLLATE BINARY') ! CString can't really store a binary value, as no nulls, but this means "not rtrim, not nocase".
-          Else
-            self.SqlCode.append(' COLLATE RTRIM')  ! basically binary, with clipped spaces
-          End
-        Else ! no collate, binary, case or nocase setting at field level, so infer from use in keys
-          If self.fields.InCaseKey
-            case self.Fields.Type
-            of ClaCString
-              self.SqlCode.append(' COLLATE BINARY') ! CString can't really store a binary value, as no nulls, but this means "not rtrim, not nocase".
-            Else
-              self.SqlCode.append(' COLLATE RTRIM')  ! basically binary, with clipped spaces
-            End
-          ElsIf self.fields.InNocaseKey = true
-            self.SqlCode.append(' COLLATE NOCASE')
-          Else  ! no clues anywhere, default to NOCASE
-            self.SqlCode.append(' COLLATE NOCASE')
-          End
-        End
-      End
-    End
-    self._CreateValidation()
-    self._CreateDefault(self.Fields.HasDefault, self.Fields.Type, Self.Fields.DefaultValue)
+    self._CreateField()
+
     If self.Fields.index = primaryset
       If self.opt:autoInc !or self.Fields.IsIdentity
         self.SqlCode.append(' PRIMARY KEY ASC AUTOINCREMENT')
@@ -3200,27 +3108,8 @@ allSql        StringTheory
     If comma
       self.SqlCode.append(',<13,10>')
     End
-    If self.blobs.Binary
-      self.SqlCode.append(self.blobs.column & ' BLOB')    ! Blobs are always collate binary, it's implied.
-    Else
-      self.SqlCode.append(self.blobs.column & ' TEXT')
-      If self.Blobs.Collate
-        self.SqlCode.append(' COLLATE ' & self.Blobs.Collate)
-      Else
-        If self.Blobs.fieldcase = driver:NoCase
-          self.SqlCode.append(' COLLATE NOCASE')
-        ElsIf self.fields.fieldcase = driver:Case
-          self.SqlCode.append(' COLLATE RTRIM')  ! basically binary, with clipped spaces
-        Else
-          self.SqlCode.append(' COLLATE RTRIM')  ! Memos are not typically used in filters or sorts, so this default saves space.
-        End
-      End
-    End
-
-    If self.blobs.NotNull
-      self.SqlCode.append(' NOT NULL')
-    End
-    self._CreateDefault(self.blobs.HasDefault, Choose(self.blobs.Memo,ClaMEMO,ClaBLOB), Self.blobs.DefaultValue)
+    comma = true
+    self._CreateBlob()
   End
   ! primary key
   If primaryset = false
@@ -3263,6 +3152,119 @@ allSql        StringTheory
     AllSql.Append(self.SqlCode)
   End
   self.SqlCode.SetValue(allSql)
+  Return
+
+!-----------------------------------------------------------------
+DriverFileSQLite2Class._CreateField   Procedure()
+  Code
+  self.SqlCode.append(self.Fields.column)
+
+  If self.Fields.SqlType
+    self.SqlCode.append(' ' & self.Fields.SqlType)
+  ElsIf not self.Fields.Interface &= Null
+    self.SqlCode.append(' ' & self.Fields.interface.GetSQLType())
+  ElsIf self.Fields.DimProduct > 1
+    self.SqlCode.append(' TEXT COLLATE BINARY')
+  Else
+    Case self.Fields.Type
+    of ClaBYTE
+    orof ClaSHORT
+    orof ClaUSHORT
+    orof ClalONG
+    orof ClaUlONG
+      self.SqlCode.append(' INTEGER')
+    of ClaDATE
+      self.SqlCode.append(' DATE')  ! will affinity to Numeric, but useful to distinguish.  will be stored as yyyy-mm-dd
+    of ClaTIME
+      self.SqlCode.append(' TIME')  ! will affinity to Numeric, but useful to distinguish   will be stored as hh:mm:ss.sss
+    of ClaDECIMAL
+    orof ClaPDECIMAL
+      self.SqlCode.append(' NUMERIC(' & self.Fields.DecimalSize & ',' & self.Fields.DecimalPlaces & ')')
+    of ClaREAL
+    orof ClaSREAL
+      self.SqlCode.append(' REAL')
+    of ClaCSTRING
+      self.SqlCode.append(' TEXT')
+    of ClaSTRING
+      If self.Fields.SqlTimeStamp
+        self.SqlCode.append(' DATETIME')    ! will affinity to Numeric, but useful to distinguish will be stored as yyyy-mm-ddThh:mm:ss.sss
+      Elsif self.Fields.uuid = 8
+        self.SqlCode.append(' TEXT')
+      ElsIf self.Fields.Binary = true
+        self.SqlCode.append(' BLOB')
+      Else
+        self.SqlCode.append(' TEXT')
+      End
+    of ClaPSTRING
+      If self.Fields.Binary = true
+        self.SqlCode.append(' BLOB')
+      Else
+        self.SqlCode.append(' TEXT')
+      End
+    End
+  End
+  If self.Fields.Collate
+    self.SqlCode.append(' COLLATE ' & self.Fields.Collate)
+  Else
+    case self.Fields.Type
+    of ClaString
+    orof ClaPString
+    orof ClaCString
+      If self.fields.binary or self.Fields.SqlTimeStamp or self.Fields.uuid = 8
+        self.SqlCode.append(' COLLATE BINARY')
+      ElsIf self.fields.fieldcase = driver:NoCase
+        self.SqlCode.append(' COLLATE NOCASE')
+      ElsIf self.fields.fieldcase = driver:Case
+        case self.Fields.Type
+        of ClaCString
+          self.SqlCode.append(' COLLATE BINARY') ! CString can't really store a binary value, as no nulls, but this means "not rtrim, not nocase".
+        Else
+          self.SqlCode.append(' COLLATE RTRIM')  ! basically binary, with clipped spaces
+        End
+      Else ! no collate, binary, case or nocase setting at field level, so infer from use in keys
+        If self.fields.InCaseKey
+          case self.Fields.Type
+          of ClaCString
+            self.SqlCode.append(' COLLATE BINARY') ! CString can't really store a binary value, as no nulls, but this means "not rtrim, not nocase".
+          Else
+            self.SqlCode.append(' COLLATE RTRIM')  ! basically binary, with clipped spaces
+          End
+        ElsIf self.fields.InNocaseKey = true
+          self.SqlCode.append(' COLLATE NOCASE')
+        Else  ! no clues anywhere, default to NOCASE
+          self.SqlCode.append(' COLLATE NOCASE')
+        End
+      End
+    End
+  End
+  self._CreateValidation()
+  self._CreateDefault(self.Fields.HasDefault, self.Fields.Type, Self.Fields.DefaultValue)
+  Return
+
+!-----------------------------------------------------------------
+DriverFileSQLite2Class._CreateBlob   Procedure()
+  Code
+  If self.blobs.Binary
+    self.SqlCode.append(self.blobs.column & ' BLOB')    ! Blobs are always collate binary, it's implied.
+  Else
+    self.SqlCode.append(self.blobs.column & ' TEXT')
+    If self.Blobs.Collate
+      self.SqlCode.append(' COLLATE ' & self.Blobs.Collate)
+    Else
+      If self.Blobs.fieldcase = driver:NoCase
+        self.SqlCode.append(' COLLATE NOCASE')
+      ElsIf self.fields.fieldcase = driver:Case
+        self.SqlCode.append(' COLLATE RTRIM')  ! basically binary, with clipped spaces
+      Else
+        self.SqlCode.append(' COLLATE RTRIM')  ! Memos are not typically used in filters or sorts, so this default saves space.
+      End
+    End
+  End
+
+  If self.blobs.NotNull
+    self.SqlCode.append(' NOT NULL')
+  End
+  self._CreateDefault(self.blobs.HasDefault, Choose(self.blobs.Memo,ClaMEMO,ClaBLOB), Self.blobs.DefaultValue)
   Return
 
 !-----------------------------------------------------------------
@@ -3360,19 +3362,8 @@ comma         byte
   End
   self.SqlCode.append(')')
   If pPrimary = false and self.keys.opt
-    self.SqlCode.append(' WHERE ')
-    Loop col = 1 to self.keys.components
-      do AddCheckToKey
-    End
+    self.AppendOptKeyWhere(self.SqlCode,pPrimary,true,'OR')
   End
-
-AddCheckToKey  routine
-  If self._withField(self.keys.component[col]) = Driver:ok
-    If col > 1
-      self.SqlCode.append(' OR ')
-    End
-    self.SqlCode.append('(' & self.Fields.column & ' <<> '''' AND NOT ' & self.Fields.column & ' ISNULL)')
-  end
 
 AddFieldToKey  routine
   If self._withField(self.keys.component[col]) = Driver:ok
@@ -3402,24 +3393,6 @@ AddFieldToKey  routine
       self.SqlCode.Append(' ASC')
     End
   End
-
-!-----------------------------------------------------------------
-!!!todo CreateField(field)
-DriverFileSQLite2Class.CREATEFIELD                Procedure(*? pField1)
-  Code
-  Return
-
-!-----------------------------------------------------------------
-DriverFileSQLite2Class.CREATEFIELD                Procedure(String pName, String pType, String pConstraint)
-  Code
-  If self.CheckConnect() = Driver:notok then Return.   ! File can be OPEN. If closed a new connection is established.
-  Self.SetError(NoError)
-  self.SqlCode.setvalue('ALTER TABLE ' & self._sanitize(self.FullPathName,driver:sqlTable) & ' ADD COLUMN ' & self._sanitize(pName,driver:SqlColumn) & ' ' & clip(pType) & ' ' & clip(pConstraint) & ';')
-  self._ParameterOpcode = 0
-  If self._executeSql() = driver:ok
-  End
-  Return
-  Return
 
 !-----------------------------------------------------------------
 DriverFileSQLite2Class.CREATEKEY         PROCEDURE(KEY pKey)

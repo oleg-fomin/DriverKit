@@ -371,31 +371,31 @@ obj      &DriverFileClass
   obj.CreateDB(pDatabaseName,pOptions)
   Return
 
-!------------------------------------------------------------------------------------------------
-CREATEFIELD             Procedure(FILE pFile,*? pField1)
-obj      &DriverFileClass
-  code
-  obj &= pFile{prop:object}
-  If obj &= null
-    ClaSetError(NoDriverSupport)
-    Return
-  End
-  If obj._logClarion then obj.Log('[CLAR]CREATEFIELD(field)').
-  obj.CreateField(pField1)
-  Return
-
-!------------------------------------------------------------------------------------------------
-CREATEFIELD             Procedure(FILE pFile,String pName, String pType, String pConstraint)
-obj      &DriverFileClass
-  code
-  obj &= pFile{prop:object}
-  If obj &= null
-    ClaSetError(NoDriverSupport)
-    Return
-  End
-  If obj._logClarion then obj.Log('[CLAR]CREATEFIELD('&clip(pName)& ',' & clip(pType) & ',' & clip(pConstraint) & ' )').
-  obj.CreateField(pName,pType,pConstraint)
-  Return
+!!------------------------------------------------------------------------------------------------
+!CREATEFIELD             Procedure(FILE pFile,*? pField1)
+!obj      &DriverFileClass
+!  code
+!  obj &= pFile{prop:object}
+!  If obj &= null
+!    ClaSetError(NoDriverSupport)
+!    Return
+!  End
+!  If obj._logClarion then obj.Log('[CLAR]CREATEFIELD(field)').
+!  obj.CreateField(pField1)
+!  Return
+!
+!!------------------------------------------------------------------------------------------------
+!CREATEFIELD             Procedure(FILE pFile,String pName, String pType, String pConstraint)
+!obj      &DriverFileClass
+!  code
+!  obj &= pFile{prop:object}
+!  If obj &= null
+!    ClaSetError(NoDriverSupport)
+!    Return
+!  End
+!  If obj._logClarion then obj.Log('[CLAR]CREATEFIELD('&clip(pName)& ',' & clip(pType) & ',' & clip(pConstraint) & ' )').
+!  obj.CreateField(pName,pType,pConstraint)
+!  Return
 
 !------------------------------------------------------------------------------------------------
 CREATEKEY               Procedure(KEY pKey)

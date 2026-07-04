@@ -10,7 +10,7 @@
 ! For new Opcodes and FieldTypes see Driver.Inc                                                 !
 !------------------------------------------------------------------------------------------------
 
-Driver:Version  Equate('1.36')
+Driver:Version  Equate('1.39')
 
 !Region ----------  Equates ----------
 ! BIGINT: use this for now as a 52 bit integer. In later clarion versions could become a int64
@@ -122,8 +122,8 @@ Connect     Procedure(FILE pFile,Long pOptions=0),name('CONNECT'),Dll(dll_mode)
 Copy        Procedure(FILE pFile, String pFileName, Long pOptions),name('COPYoptions'),Dll(dll_mode)
 CreateDB    Procedure(FILE pFile,String pDatabaseName,<String pOptions>),name('CREATEDBname'),Dll(dll_mode)
 CreateDB    Procedure(FILE pFile),name('CREATEDB'),Dll(dll_mode)
-CreateField Procedure(FILE pFile,*? pField1),name('CREATEfield'),Dll(dll_mode)
-CreateField Procedure(FILE pFile,String pName, String pType, String pConstraint),name('CREATEfieldtext'),Dll(dll_mode)
+!CreateField Procedure(FILE pFile,*? pField1),name('CREATEfield'),Dll(dll_mode)
+!CreateField Procedure(FILE pFile,String pName, String pType, String pConstraint),name('CREATEfieldtext'),Dll(dll_mode)
 CreateKey   Procedure(KEY pKey),name('CREATEkey'),Dll(dll_mode)
 CreateKey   Procedure(File pFile,String pName, Long pOptions, *? pField1, *? pField2, <*? pField3>, <*? pField4>, <*? pField5>, <*? pField6>, <*? pField7>, <*? pField8>, <*? pField9>, <*? pField10>),name('CREATEnewkey'),Dll(dll_mode)
 CreateRelations   Procedure(File pFile),name('CREATErelations'),Dll(dll_mode)
@@ -305,6 +305,7 @@ PROP:CollationDb        Equate(744Ch)
 Prop:DatePicture        Equate(744Dh) ! used in EXPORT and IMPORT commands
 Prop:TimePicture        Equate(744Eh) ! used in EXPORT and IMPORT commands
 PROP:InStream           Equate(744Fh)
+Prop:ErrorHook          Equate(7450h)
 
 !EndRegion: Properties
 !Region ----------  Errors ----------

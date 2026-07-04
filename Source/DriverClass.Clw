@@ -187,7 +187,7 @@ DriverBaseClass.Debug            PROCEDURE()
 DriverBaseClass.Trace            PROCEDURE(String pStr)
 cstr  Cstring(size(pStr)+101)
   Code
-  cstr = '[' & self.GetProp:Driver() &'][' & self._structure & '][' & self.rid & '][THD=' & thread() & '][' & self.GetProp:Label(0) & '] ' & clip(pStr)
+  cstr = '[' & self.GetProp:Driver() &'][' & Driver:Version & '][' & self._structure & '][' & self.rid & '][THD=' & thread() & '][' & self.GetProp:Label(0) & '] ' & clip(pStr)
   osOutputDebugString(cstr)
   Return
 
@@ -313,7 +313,7 @@ ufo         &driver:iUFO
 
 !------------------------------------------------------------------------------
 ! If the value is null, or 0, then the date 0001-01-01 is used. This is the "lowest" date supported by most databases.
-DriverBaseClass.FormatDate    Procedure(*Date pDate)
+DriverBaseClass.FormatDate    Procedure(*Date pDate,String pPic)
 dtl      Long,Over(pDate)
 saveDtl  Long,Auto
 ans      String(10),Auto
@@ -329,7 +329,7 @@ ans      String(10),Auto
       dtl = bshift(self.opt:ZeroDate / 10000,16) + bshift((self.opt:ZeroDate / 100) % 100,8) + self.opt:ZeroDate % 100
     End
   End
-  ans =  self.TempFormat.FormatDate(pDate,self.DatePicture)
+  ans =  self.TempFormat.FormatDate(pDate,pPic) !self.DatePicture)
   Dtl = SaveDtl  ! passed by reference, so restore it to what it was
   Return ans
 
@@ -384,9 +384,9 @@ tm    long
   of driver:GroupOverTimeStampTZ
     gr = pStr
     If gr.off >= 0
-      Return self.FormatDate(gr.dt) & self.DateTimeSeparator & self.FormatTime(gr.tm) & ' +' & self.TempFormat.FormatTime(gr.off,'@t01Z')
+      Return self.FormatDate(gr.dt,self.DatePicture) & self.DateTimeSeparator & self.FormatTime(gr.tm) & ' +' & self.TempFormat.FormatTime(gr.off,'@t01Z')
     Else
-      Return self.FormatDate(gr.dt) & self.DateTimeSeparator & self.FormatTime(gr.tm) & ' -' & self.TempFormat.FormatTime((gr.off*-1),'@t01Z')
+      Return self.FormatDate(gr.dt,self.DatePicture) & self.DateTimeSeparator & self.FormatTime(gr.tm) & ' -' & self.TempFormat.FormatTime((gr.off*-1),'@t01Z')
     End
   of driver:GroupOverTimeStamp2
     gr2 = pStr
@@ -403,7 +403,7 @@ tm    long
   else
     gr = pStr
   End
-  Return self.FormatDate(gr.dt) & self.DateTimeSeparator & self.FormatTime(gr.tm)
+  Return self.FormatDate(gr.dt,self.DatePicture) & self.DateTimeSeparator & self.FormatTime(gr.tm)
 
 !-----------------------------------------------------------------
 DriverBaseClass._FreeSubset         Procedure()
@@ -876,6 +876,8 @@ DriverBaseClass.InterpretProperty  Procedure(long pProperty)
     return 'PROP:DynamicFile'
   of PROP:Encrypt
     return 'PROP:Encrypt'
+  of PROP:ErrorHook
+    return 'PROP:ErrorHook'
   of PROP:Exists
     return 'PROP:Exists'
   of PROP:Explain
@@ -923,7 +925,7 @@ DriverBaseClass.InterpretProperty  Procedure(long pProperty)
   of PROP:InTransaction
     return 'PROP:InTransaction'
   of PROP:IgnoreTruncation
-    return ' PROP:IgnoreTruncation'
+    return 'PROP:IgnoreTruncation'
   of PROP:ImageAsString
     return 'PROP:ImageAsString'
   of PROP:Inner
@@ -1916,6 +1918,7 @@ x            Long,Auto
   code
   rTokenString.SetValue('')
   !self.trace('xxx DriverBaseClass.ParseProperty [' & pProperty & ']  pContext=' & pContext)
+  If self._logClarion then self.Log('[CLAR]Parse [' & pContext & '][' & pProperty & ']').
   self._ParseContext = pContext
   If pProperty = '' then Return driver:ok.
   self.SetError(NoError)
@@ -2751,7 +2754,7 @@ FieldBoolean  Byte ,Auto
         rt = sub(relatedToken,2,4)
         Get(self.ConditionQueue,rt)                     ! get the condition
         case self.ConditionQueue.Condition[1]
-        of '>' orof '<' orof '=' orof '<>' orof '<=' orof '>='                       !
+        of '>' orof '<' orof '='
           relatedtoken = sub(pTokenString,pTokenpos-12,6)
           If relatedToken[1] = token:label                ! see if being compared to a label
             rt = sub(relatedToken,2,4)
@@ -2767,7 +2770,7 @@ FieldBoolean  Byte ,Auto
         rt = sub(relatedToken,2,4)
         Get(self.ConditionQueue,rt)
         case self.ConditionQueue.Condition[1]
-        of '>' orof '<' orof '=' orof '<>' orof '<=' orof '>='
+        of '>' orof '<' orof '='
           relatedtoken = sub(pTokenString,pTokenpos+12,6)
           If relatedToken[1] = token:label
             rt = sub(relatedToken,2,4)
@@ -2783,7 +2786,7 @@ GetLabelType  routine
   If self.GetLabelType(self.LabelQueue.Label,FieldType,FieldBoolean) = Driver:ok
     Case FieldType
     of ClaDATE
-      pValue = self._TranslateDateSql(pValue)
+      pValue = self._TranslateDateSql(pValue,true)
     of ClaTIME
       pValue = self._TranslateTimeSql(pValue)
     Else
@@ -2997,7 +3000,7 @@ numParms  Long
   of 'sql'
     return self.TranslateSql(pFunc,pParms,pTokenString,pTokenPos,ExParms,NumParms)
 
-  of 'time'
+  !of 'time'
 
 
   of 'year'     ! YEAR(date)                                                    => YEAR(date)
@@ -3090,7 +3093,7 @@ yr         Cstring(128) ,Auto
   ! a "cast" telling the engine that the parameter is a DATE value. not a formatted string date, but a Long etc.
   ! So the parameter needs to be expanded, and then that wrapped in _TranslateDateSql(value)
   If len(pParms) = 6 ! only one parameter
-    Return self._TranslateDateSql(self._ExpandExpression(pParms))
+    Return self._TranslateDateSql(self._ExpandExpression(pParms),false)
   End
 
   ! if the function is being used in a comparison, then the type of the comparing field is important.
@@ -3157,9 +3160,21 @@ yr         Cstring(128) ,Auto
 !-----------------------------------------------------------------
 !!!Possibly DERIVE. This form is good enough for SQLite and MSSQL
 ! Takes a Clarion standard date, and translates it into a SQL date
-DriverBaseClass._TranslateDateSql  Procedure(String pValue)
+DriverBaseClass._TranslateDateSql  Procedure(String pValue, Byte pConditionLoaded)
+dt Date
   code
-  Return '''' & format(pValue,@D010-) & ''''
+  If pConditionLoaded
+    If pValue = 0
+      Case self.opt:ZeroDate
+      Of -1
+        self.ConditionQueue.Condition = ' IS '
+        Put(self.ConditionQueue)
+        Return 'NULL'
+      End
+    End
+  End
+  dt = pValue
+  Return '''' & self.FormatDate(dt,'@D010-') & ''''
 
 !-----------------------------------------------------------------
 !!!DERIVE
@@ -3541,7 +3556,7 @@ cx          long ,Auto
 ! Takes a Clarion standard time, and translates it into a SQL time
 DriverBaseClass._TranslateTimeSQL      Procedure(String pValue)
   Code
-  Return '''' & format(pValue,@T04) & ''''
+  Return '''' & self.FormatTime(pValue) & ''''
 
 !-----------------------------------------------------------------
 DriverBaseClass.TranslateYear         Procedure(*Cstring pFunc, *CString pParms,string pTokenString,*Long pTokenPos,*Cstring[] pExParm,Long pNumParms)
@@ -3681,8 +3696,8 @@ Ans   Long
 !-----------------------------------------------------------------
 DriverBaseClass.SetInTransaction              Procedure(Long pHandle)
   code
-  self.ConnectionPool.SetTransaction(self.dbHandle,pHandle)
   If self._logConnections then self.Log('[CONN][cn01] SetTransaction(' & self.dbHandle & ',' & pHandle & ')')  .
+  self.ConnectionPool.SetTransaction(self.dbHandle,pHandle)
   Return
 
 !-----------------------------------------------------------------
@@ -3766,6 +3781,7 @@ y  long,auto
     If pOpcode = Opcode:ALL
       Clear(self.ParameterQueue.ParameterArray)
       self.ParameterQueue.ParameterArrayIndex = 0
+      self._PropsCache += 1
     Else
       Loop x = 1 to self.ParameterQueue.ParameterArrayIndex
         If self.ParameterQueue.ParameterArray[x].OpCode = pOpcode
@@ -3932,6 +3948,8 @@ DriverBaseClass.GETPROPERTY                        Procedure(String pProperty,Lo
     Return self.GetProp:Obd()
   of Prop:NotDistinct
     Return self.GetPROP:NotDistinct()
+  of Prop:ErrorHook
+    return self.GetProp:ErrorHook()
   of PROP:Explain
     return self.GetProp:Explain()
   of PROP:FetchSize
@@ -4153,10 +4171,10 @@ UserLen                Ulong,Auto
   !Clog = '[' & self.GetProp:Driver() & '][' & self._structure & '][' & self.rid & '][' & _WorkStation & '][' & _User & '][' & _ProcessId & '][' & thread() & '][' & format(today(),'@d1')& '][' & format(clock(),'@t4') & '][' & self.GetProp:Server() & '][' & self.GetProp:Database() & '][' & self.FullPathName & '][' & self.status() & ']' & clip(pLog) & '<13,10>'
   !Clog = '[' & self.GetProp:Driver() & '][' & self._structure & '][' & self.rid & '][' & _WorkStation & '][' & _User & '][' & _ProcessId & '][' & '][' & self.GetProp:Server() & '][' & self.GetProp:Database() & '][' & self.FullPathName & '][' & ']' & clip(pLog) & '<13,10>'
   If self._LogFile = ''
-    Clog = '[' & self.GetProp:Driver() & '][' & self._structure & '][' & self.rid & '][PID=' & _ProcessId & '][THD=' & thread() & '][' & self.GetProp:Server() & '][' & self.GetProp:Database() & '][' & self.FullPathName & '][' & self.status() & ']' & clip(pLog)
+    Clog = '[' & self.GetProp:Driver() & '][' & Driver:Version & '][' & self._structure & '][' & self.rid & '][PID=' & _ProcessId & '][THD=' & thread() & '][' & self.GetProp:Server() & '][' & self.GetProp:Database() & '][' & self.FullPathName & '][' & self.status() & ']' & clip(pLog)
     osOutputDebugString(Clog)
   Elsif self._LogFile
-    Clog = '[' & self.GetProp:Driver() & '][' & self._structure & '][' & self.rid & '][' & _WorkStation & '][USR=' & _User & '][PID=' & _ProcessId & '][THD=' & thread() & '][' & format(today(),'@d1')& '][' & format(clock(),'@t4') & '][' & self.GetProp:Server() & '][' & self.GetProp:Database() & '][' & self.FullPathName & '][' & self.status() & ']' & clip(pLog) & '<13,10>'
+    Clog = '[' & self.GetProp:Driver() & '][' & Driver:Version & '][' & self._structure & '][' & self.rid & '][' & _WorkStation & '][USR=' & _User & '][PID=' & _ProcessId & '][THD=' & thread() & '][' & format(today(),'@d1')& '][' & format(clock(),'@t4') & '][' & self.GetProp:Server() & '][' & self.GetProp:Database() & '][' & self.FullPathName & '][' & self.status() & ']' & clip(pLog) & '<13,10>'
     If self._logHandle = 0
       ! open log file, in append mode
       self._logHandle = osCreateFile(self._LogFile, GENERIC_WRITE, SHARE_ALL , 0, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0)
@@ -4165,7 +4183,7 @@ UserLen                Ulong,Auto
         self._WinError()
       End
     End
-    If self._logHandle >= 0
+    If self._logHandle <> INVALID_HANDLE_VALUE
       ! set to end of file
       LogCriticalSection.Wait()
       If osSetFilePointer(self._logHandle, 0, 0, dos:FILE_END)
@@ -4193,7 +4211,7 @@ UserLen                Ulong,Auto
 !-----------------------------------------------------------------
 DriverBaseClass.LOGGINGON                  Procedure(<String pFileName>,Long pOptions=0)
   Code
-  self.trace('=========================== LOGGING ON ' & self.FullPathName & ' ==============================================')
+  self.trace('=========================== LOGGING ON ' & self.FullPathName & '[' & Driver:Version & '] ==============================================')
   If Omitted(pFileName)
     self._LogFile = ''
   Else
@@ -4381,6 +4399,8 @@ DriverBaseClass.SETPROPERTY              Procedure(String pProperty,Long pIndex,
     self.SetPROP:Distinct(pValue)
   of PROP:NotDistinct
     self.SetPROP:NotDistinct(pValue)
+  of Prop:ErrorHook
+    self.Setprop:ErrorHook(pValue)
   of PROP:Explain
     self.SetPROP:Explain(pValue)
   of PROP:FetchSize
@@ -4629,6 +4649,16 @@ DriverBaseClass.GetProp:Database       PROCEDURE()   ! get the database name out
 DriverBaseClass.GetProp:DatabaseName        PROCEDURE()!,STRING,VIRTUAL ! Get name of database, like SQLITE or PostgreSQL or whatever
   code
   Return ''
+
+!-----------------------------------------------------------------
+DriverBaseClass.GetProp:ErrorHook         PROCEDURE()
+  code
+  Return address(self.ErrorHook)
+
+!-----------------------------------------------------------------
+DriverBaseClass.SetProp:ErrorHook         PROCEDURE(Long pValue)
+  code
+  self.Errorhook &= (pValue)
 
 !-----------------------------------------------------------------
 DriverBaseClass.GetProp:OBD           PROCEDURE()    ! Is this an Object Based Driver?
@@ -5325,8 +5355,8 @@ DriverFileClass.SetFileError        PROCEDURE(String pError, String pMessage)
 ! from program code. If called from program code then it pre-emptivly "binds" that
 ! file structure to this object.
 ! If called from the thunk, then an object has already been created, and this is just a courtesy call.
-DriverFileClass.INIT             PROCEDURE(File pFile, Long pForce=false)
-lFile      long
+DriverFileClass.INIT             PROCEDURE(File pFile, Long pForce=false, Long pRblock=true)
+lFile      Long
 FileOne    &FILE
 FileOneObj &DriverFileClass
 Driver     String(32)
@@ -5341,10 +5371,12 @@ r          byte
   self.file &= pFile
   lFile = address(pFile)
   self.ClaFCB  &= (lfile)
-  If self.ClaFCB.rblock = 0             ! this is the first object assigned to this file
-    self.ClaFCB.rblock = address(self)
-  Elsif self.ClaFCB.rblock <> address(self)
-    Self.ReplaceObject(self.ClaFCB.rblock)  ! this is replacing the object assigned to the file
+  If pRblock
+    If self.ClaFCB.rblock = 0             ! this is the first object assigned to this file
+      self.ClaFCB.rblock = address(self)
+    Elsif self.ClaFCB.rblock <> address(self)
+      Self.ReplaceObject(self.ClaFCB.rblock)  ! this is replacing the object assigned to the file
+    End
   End
   self.recbuf &= (self.ClaFCB.rec_buf) &':' & self.ClaFCB.rec_len
   self.reclen = self.ClaFCB.rec_len
@@ -5366,9 +5398,14 @@ r          byte
 
 ! Prime object properties from pFILE
   self._UpdateFileStrings()
-  ! first apply System-wide driver string for all files of this driver
+
   compile('!***',_C100_=1)
+  ! first apply System-wide driver string for all files of this driver
   self.Send(System{'Driver:' & self.GetPROP:Driver()})       ! available from Clarion 10.11975 --- October 27, 2015
+  ! attach systemwide, unthreaded Error Hook
+  If system{'Driver:ErrorHook'}
+    self.ErrorHook &= (system{'Driver:ErrorHook:' & self.GetPROP:Driver()})
+  End
   !***
   ! Then apply the driver string for this table
   self.Send(self.DriverStr)
@@ -7521,7 +7558,7 @@ ulReturn1 Ulong,over(lReturn1)
     lparm1 = self._GetParmAsLong(pVarList,1)  ! effectivly the &key
     kparm1 &= (lparm1)
     If self._logClarion then self.Log('[CLAR]RECORDS(key)').
-    return self.Records()
+    return self.Records(kparm1)
 
   of Opcode:REGETfile
     If self._logClarion then self.Log('[CLAR]REGET(string)').
@@ -8478,6 +8515,43 @@ DriverFileClass.CREATETABLE      PROCEDURE()
   self._CreateTable()
   Return
 
+!----------------------------------------------------------------------------
+! keys queue is loaded
+DriverFileClass.AppendOptKeyWhere  Procedure(StringTheory pStr, Long pPrimary, Long pIncludeWhere, String pSeparator)
+col  Long
+  code
+  If pPrimary = false and self.keys.opt
+    If pIncludeWhere then pStr.append(' WHERE ').
+    Loop col = 1 to self.keys.components
+      If self._withField(self.keys.component[col]) = Driver:ok
+        If col > 1
+          pStr.append(' ' & pSeparator & ' ')
+        End
+        case self.fields.Type
+        of ClaSTRING
+        orof ClaPSTRING
+        orof ClaCSTRING
+          pStr.append('(' & self.Fields.column & ' <<> '''')') !  AND ' & self.Fields.column & ' IS NOT NULL)')
+        of ClaDATE
+          Case self.opt:ZeroDate
+          of -1
+            pStr.append('(' & self.Fields.column & ' IS NOT NULL)')
+          of 0
+          orof 1
+            pStr.append('(' & self.Fields.column & ' <<> ''0001-01-01'' )') ! AND ' & self.Fields.column & ' IS NOT NULL)')
+          Else
+            pStr.append('(' & self.Fields.column & ' <<> ''' & format(self.opt:ZeroDate / 10000,@n04) & '-' & format((self.opt:ZeroDate / 100) % 100,@n02) & '-' & format(self.opt:ZeroDate % 100,@n02) & ''')') !  AND ' & self.Fields.column & ' IS NOT NULL)')
+          End
+        of ClaTIME
+          pStr.append('(' & self.Fields.column & ' <<> ''' & self.FormatTime(0) & ''')')  !  AND ' & self.Fields.column & ' IS NOT NULL)')
+        Else
+          pStr.append('(' & self.Fields.column & ' <<> 0 )') !  AND ' & self.Fields.column & ' IS NOT NULL)')
+        End
+      End
+    End
+  End
+  Return
+
 !-----------------------------------------------------------------
 DriverFileClass.CLONE            Procedure(String pNewTableName,Long pOptions)
   code
@@ -8606,18 +8680,27 @@ DriverFileClass._CREATETABLE      PROCEDURE()
   Code
   Return
 
-
 !-----------------------------------------------------------------
-DriverFileClass.CREATEFIELD       PROCEDURE(*? pField1)
-  Code
-  self.SetError(NoDriverSupport)
+DriverFileClass._CreateField                Procedure()
+  code
   Return
 
 !-----------------------------------------------------------------
-DriverFileClass.CREATEFIELD      PROCEDURE(String pName, String pType, String pConstraint)
-  Code
-  self.SetError(NoDriverSupport)
+DriverFileClass._CreateBlob                Procedure()
+  code
   Return
+
+!!-----------------------------------------------------------------
+!DriverFileClass.CREATEFIELD       PROCEDURE(*? pField1)
+!  Code
+!  self.SetError(NoDriverSupport)
+!  Return
+!
+!!-----------------------------------------------------------------
+!DriverFileClass.CREATEFIELD      PROCEDURE(String pName, String pType, String pConstraint)
+!  Code
+!  self.SetError(NoDriverSupport)
+!  Return
 
 !-----------------------------------------------------------------
 DriverFileClass.CREATEKEY         PROCEDURE(KEY pKey)
@@ -9597,13 +9680,6 @@ DriverFileClass.REOPEN           PROCEDURE(Long pAccessMode)
     self._locknames = false
     Return
   End
-  If Band(pAccessMode,11b) = 0
-    self.ReadOnly = true
-  Else
-    self.ReadOnly = false
-  End
-  self.SetStatus(pAccessMode)
-  Return
 
 !-----------------------------------------------------------------
 DriverFileClass.SHARE            PROCEDURE(LONG pAccessMode=042h)
@@ -9850,7 +9926,7 @@ fieldName   cstring(255)
   Free(self.OrderQueue)
   self.BuildOrderByKey(pKey)
   self._setdirection = Opcode:NEXT
-  self._NoAlias = true
+  self._NoAlias = true                         ! in case reset in derived call
   self.SetOrderByFromQueue()                   ! uses self._setdirection
   self._NoAlias = false
   If IsString(pField)
@@ -12757,7 +12833,7 @@ x     long
   of ClaDATE
     dt &= (addr)
     If band(pOptions,driver:Format)
-      str = self.FormatDate(dt)
+      str = self.FormatDate(dt,self.DatePicture)
     Else
       str = dt            ! clarion standard date, not formatted
     End
@@ -13210,10 +13286,19 @@ DriverFileSQLClass.DESTRUCT                  PROCEDURE()
   Dispose(self.opt:LogMessage)
   Return
 
+!!-----------------------------------------------------------------
+!DriverFileSQLClass.INIT            PROCEDURE(FILE pFile, Long pForce=false, Long pRblock=true)!,DERIVED
+!  code
+!  parent.Init(pFile,pForce,pRblock)
+!  Return
+
 !-----------------------------------------------------------------
-DriverFileSQLClass.INIT            PROCEDURE(FILE pFile, Long pForce=false)!,DERIVED
-  code
-  parent.Init(pFile,pForce)
+DriverFileSQLClass.SetError            PROCEDURE(Long pError)
+  Code
+  parent.SetError(pError)
+  If pError <> NoError and not self.ErrorHook &= NULL
+    Self.ErrorHook.TakeErrorFile(self)
+  End
   Return
 
 !-----------------------------------------------------------------
@@ -13582,6 +13667,7 @@ x           Long,Auto
 stmt        Long
 FieldsList  StringTheory
 Where       StringTheory
+OptWhere    StringTheory
   Code
   self._ClearParameterQueue(self._ParameterOpcode)
   If self._WithKey(pKey) = Driver:ok
@@ -13597,6 +13683,10 @@ Where       StringTheory
         self._SetParameterNode(self._ParameterCount,self.fields,driver:FromBuffer,0)
         where.Append(self._GetAlias(driver:withdot) & self.Fields.Column & '= ' & self._genparm(self._ParameterCount) ,st:NoClip,' AND ')
       End
+    End
+    If self.keys.primary = false and self.keys.Opt ! exclude Nulls
+      self.AppendOptKeyWhere(OptWhere,false,false,'OR')
+      where.Append(' AND (' & OptWhere.GetValue() & ')')
     End
     self.SqlCode.SetValue('SELECT ' & self.ProjectList.GetValue() & ' FROM ' & self._sanitize(self.FullPathName,driver:sqlTable) & ' ' & self._GetAlias(driver:nodot) & ' WHERE ' & where.GetValue() & ';')
     Return driver:ok
@@ -13696,6 +13786,7 @@ where               StringTheory
 cte                 StringTheory
 from                Cstring(255)
 tok                 StringTheory
+opt                 StringTheory
 
   Code
   self._ClearParameterQueue(Opcode:Set)
@@ -13945,7 +14036,7 @@ decString  string(36)
         If pHighLow = driver:low
           decstring = '-' & decstring
         End
-        self._StringToDec(decString,self.Fields.Type,address(decstring),self.Fields.DecimalSize,self.Fields.DecimalPlaces)
+        self._StringToDec(decString,self.Fields.Type,address(decstring),self.Fields.DecimalSize,self.Fields.DecimalPlaces) ! does read before write
         memcpy(pAddr + self.Fields.Offset,address(Decstring),self.Fields.Size)
       of ClaSTRING
         If pHighLow = driver:high
@@ -14649,10 +14740,17 @@ DriverFileSQLClass.RECORDS          PROCEDURE()
   Return self.RecordsFilter('')
 
 !-----------------------------------------------------------------
-! since the driver does not support "exclude" keys, the key value is the same as the table value.
-!!!todo  Records(key) should count the records in the key, but exclude items where the keyvalues are null.
-DriverFileSQLClass.RECORDS          PROCEDURE(KEY keyLabel)
+DriverFileSQLClass.RECORDS          PROCEDURE(KEY pkey)
+str   stringtheory
   Code
+  If self._WithKey(pkey) = driver:ok
+    If self.keys.primary = false and self.keys.opt    ! Exclude Nulls
+      self.AppendOptKeyWhere(str,false,false,'OR')
+      If str.Length()
+        Return self.RecordsFilter(str.GetValue())
+      End
+    End
+  End
   Return self.Records()
 
 !-----------------------------------------------------------------
@@ -15954,16 +16052,18 @@ srStr     string(8),over(self.SearchRank)
     obj &= (self.FileObject[x])
     if obj &= Null then cycle.
     If obj._WithPrimaryKey() = driver:ok
+      If x > 1 then PushErrors() .
       pk &= (obj.keys.keyptr)
       obj.setProp:Project('')
       If not obj._ProjectClauses &= null
         obj._ProjectClauses.SetValue('')
       End
       obj.Get(pk)
+      If x > 1 then PopErrors() .
     End
   End
-
   Return
+
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 ! pStr must be a POSITION string returned from calling POSITION(view)
@@ -16971,6 +17071,15 @@ DriverViewSQLClass.Destruct           Procedure()
   Code
   Dispose(self.JoinList)
   Dispose(self._ProjectClauses)
+  Return
+
+!-----------------------------------------------------------------
+DriverViewSQLClass.SetError            PROCEDURE(Long pError)
+  Code
+  parent.SetError(pError)
+  If pError <> NoError and not self.ErrorHook &= NULL
+    Self.ErrorHook.TakeErrorView(self)
+  End
   Return
 
 !-----------------------------------------------------------------
@@ -18230,15 +18339,15 @@ v      cString(255),Auto
       v = clip(obj.GetProp:Value(obj.fields.index))
       obj._SetParameterValue(self._ParameterCount,v,obj.fields.type)  ! fixing the parameter to a value as it is at the SET, not based on the shadow buffer.
       If pIndex < 0
-        ans.append(obj.Fields.Column & ' = ' & obj._genparm(self._ParameterCount),,' AND ')
+        ans.append(obj._GetAlias(driver:withdot)  & obj.Fields.Column & ' = ' & obj._genparm(self._ParameterCount),,' AND ')
         self.OrderQueue.Fixed = true
         put(self.OrderQueue)
       Else
         Case self._setdirection
         Of Opcode:Next
-          ans.append(obj.Fields.Column & ' >= ' & obj._genparm(self._ParameterCount),,' AND ')
+          ans.append(obj._GetAlias(driver:withdot) & obj.Fields.Column & ' >= ' & obj._genparm(self._ParameterCount),,' AND ')
         Of Opcode:Previous
-          ans.append(obj.Fields.Column & ' <= ' & obj._genparm(self._ParameterCount),,' AND ')
+          ans.append(obj._GetAlias(driver:withdot) & obj.Fields.Column & ' <= ' & obj._genparm(self._ParameterCount),,' AND ')
         End
       End
     End
