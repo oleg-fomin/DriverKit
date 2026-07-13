@@ -41,6 +41,7 @@ DRIVER:MAXOWNER              Equate(256)
 DRIVER:MAXALIASLENGTH        Equate(32)
 DRIVER:MAXPARAMETERS         Equate(4096)
 DRIVER:MAXPROPNAME           Equate(16384)
+DRIVER:MAXERRORHOOKS         Equate(16)
 
 Dos:FILE_BEGIN               Equate(0)
 Dos:FILE_CURRENT             Equate(1)
@@ -356,7 +357,8 @@ DriverBaseClass          Class(), Type, Module('DriverClass.Clw'),Link('DriverCl
 ! -----------------------------------------------------------------------------
 rid                        Long
 ConnectionPool             &DriverConnectionPoolClass
-ErrorHook                  &iError
+ErrorHooks                 Long,dim(DRIVER:MAXERRORHOOKS)
+NumErrorHooks              Long
 dbHandle                   Long
 
 _Result                    &DriverResultSetClass    ! This is the class (not the interface). This isn't changed by saving state
@@ -436,6 +438,7 @@ __BASESTATESTART           Byte                        ! do NOT move me
 opt:ZeroDate               Long           ! /ZERODATE=19010101
 opt:PropSqlMatchByNumber   Byte
 _MatchByNumber             Byte           ! may be turned on by prop:sql and then off again.
+_ClearSqlFilter            Byte           ! indicates SQLFilter set by SEND(/WHERE command and so must be cleared on next SET.
 ResultRow                  BIGINT
 _ResultRow                 BIGINT
 _ResultSetDirection        Byte
@@ -577,6 +580,10 @@ GenerateUUIDv4             Procedure(),String,Virtual
 GenerateUUIDv7             Procedure(),String,Virtual
 GenerateUUIDv8             Procedure(),String,Virtual
 
+! methods to handle ErrorHook queue
+RegisterErrorhook          Procedure(*iError pError),Virtual
+UnregisterErrorhook        Procedure(*iError pError),Virtual
+
 ! methods to parse out properties, SQL properties, and convert to SQL
 BuildGroupBy               Procedure(),Virtual
 BuildHaving                Procedure(),Virtual
@@ -712,8 +719,6 @@ GetPROP:Distinct           Procedure(),STRING,VIRTUAL
 SetPROP:Distinct           Procedure(BYTE pDistinct),VIRTUAL
 GetPROP:Driver             Procedure(),STRING,VIRTUAL             ! Get name of file driver
 GetPROP:DriverVersion      Procedure(),STRING,VIRTUAL
-GetProp:ErrorHook          Procedure(),STRING,VIRTUAL
-SetProp:ErrorHook          Procedure(Long pValue),VIRTUAL
 GetPROP:Fields             Procedure(Long pIndex),STRING,VIRTUAL
 GetPROP:FetchSize          Procedure(),STRING,VIRTUAL  ! Get the pagesize parameter for the last BUFFER statement executed
 SetPROP:FetchSize          Procedure(Long pValue),VIRTUAL  ! Set the pagesize parameter
@@ -833,6 +838,7 @@ _locked                 Byte
 _ClaimStartedTransaction Byte
 _ClaimActive             Byte
 _ClaimSqlDidPut          Byte
+_CallingStoredProcedure  Byte
 
 ! --------------------------------------------------------------------
 ! pointers which need to be cloned during a GETSTATE or RESTORESTATE
@@ -844,18 +850,19 @@ _ProjectClauses         &StringTheory
 ! --------------------------------------------------------------------
 ! variables which need to be copied during a GETSTATE or RESTORESTATE
 __FILESTATESTART        Byte
-Owner                   cstring(DRIVER:MAXOWNER)  ! The string specified in the OWNER attribute of the FILE.
-_ConnectedAs            cstring(DRIVER:MAXOWNER)  ! The value in Owner when the last connection was made.
-_TryConnectedAs         cstring(DRIVER:MAXOWNER)  ! The value in Owner when the last connection was attempted.
-_ConnectedPool          long                      ! The value in prop:pool when the last connection was made.
-DriverStr               cstring(256)  ! The string specified as the second string in DRIVER attribute.
-Alias                   cstring(DRIVER:MAXALIASLENGTH)   ! The Alias used for the file in Views. Defaults to A,B,C etc. Can be set here.
-CollationDB             cstring(50)   ! 50 seems like enough, but might need to be lengthened in future.
+Owner                   Cstring(DRIVER:MAXOWNER)  ! The string specified in the OWNER attribute of the FILE.
+_ConnectedAs            Cstring(DRIVER:MAXOWNER)  ! The value in Owner when the last connection was made.
+_TryConnectedAs         Cstring(DRIVER:MAXOWNER)  ! The value in Owner when the last connection was attempted.
+_ConnectedPool          Long                      ! The value in prop:pool when the last connection was made.
+DriverStr               Cstring(256)  ! The string specified as the second string in DRIVER attribute.
+Alias                   Cstring(DRIVER:MAXALIASLENGTH)   ! The Alias used for the file in Views. Defaults to A,B,C etc. Can be set here.
+CollationDB             Cstring(50)   ! 50 seems like enough, but might need to be lengthened in future.
 dbCaseInsensitive       Byte          ! true means the database is case insensitive
 RecordPointer           BIGINT        ! the position of the current record buffer in the file
 RecordLength            BIGINT        ! The Length of the last read when doing GET(pointer,length)
 SetPointer              BIGINT        ! The position of the last SET command.
 Pool                    Long
+SPReturn                Long          ! StoredProcedure Return Value (Long)
 
 _ProjectField           Byte,dim(DRIVER:MAXFILEFIELDS)
 _ProjectBlobField       Byte,dim(DRIVER:MAXBLOBFIELDS)
@@ -1295,6 +1302,7 @@ GetPROP:Reclaim            Procedure(),STRING,VIRTUAL    ! Get Reclaim attribute
 GetPROP:Record             Procedure(),STRING,VIRTUAL  ! Get the file's record buffer
 GetProp:RelationsOff       Procedure(),STRING,VIRTUAL
 GetPROP:Size               Procedure(Long pIndex),STRING,VIRTUAL
+GetProp:SPReturn           Procedure(),STRING,VIRTUAL
 SetPROP:Size               Procedure(Long pIndex,BIGINT pValue),VIRTUAL
 SetPROP:ServerAutoInc      Procedure(Long pIndex,BIGINT pValue),VIRTUAL
 GetPROP:SQLDriver          Procedure(),STRING,VIRTUAL  ! '1' = Driver is SQL aware

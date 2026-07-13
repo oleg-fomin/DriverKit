@@ -78,6 +78,7 @@ _User                 Cstring(255)
       osWNetGetUser( <*CSTRING lpName>, *CSTRING lpUserName, *ULONG lpnLength  ),ulong,proc,raw,pascal,name('WNetGetUserA') , dll(1)
       osIsValidCodePage(Long pCodePage),Long,Raw,Pascal,name('IsValidCodePage'), dll(1)
       osGetACP(),Long,Raw,Pascal,name('GetACP'), dll(1)
+      osSleep(long),Pascal,raw,name('Sleep'),dll(1)
     end
     module('rtl')
       _MemCpy(long dest, long src,  unsigned count), long, proc, name('_memcpy'),dll(DLL_Mode)
@@ -90,7 +91,7 @@ _User                 Cstring(255)
       ClaSetError(Long pError),name('Cla$seterror')
       ClaSetFileError(Long pError),name('Cla$setfileerror')
       ClaSetFileError(*CSTRING pErrorCode, *CSTRING pErrorMessage),Raw,NAME('Cla$SetFileError')
-      ClaClearError(),NAME('Cla$ClearError')
+      !ClaClearError(),NAME('Cla$ClearError')
       ClaSetErrorFile(FILE pFile),NAME('Cla$SetErrorFile')
       ClaActivateDriver(Long pFcb, Long pAccessMode, Long pSupportsLogout, Long pSupportsRollback, Long pSupportsCommit, Long pSupportsLock, Long pSupportsUnlock),name('Cla$activate_drv')
       ClaDeactivateDriver(Long pFcb),name('Cla$deactivate_drv')
@@ -206,7 +207,7 @@ DriverBaseClass.LoadLogging  procedure
 DriverBaseClass.SetError            PROCEDURE(Long pError)
   Code
   If pError = NoError
-    ClaClearError()
+    ClearError()
   Else
     ClaSetError(pError)
     If self._logClarion or self._logSQL then self.Log('[CLAR]SETERROR :' & errorcode() & ' ' & error2()  ).
@@ -876,8 +877,6 @@ DriverBaseClass.InterpretProperty  Procedure(long pProperty)
     return 'PROP:DynamicFile'
   of PROP:Encrypt
     return 'PROP:Encrypt'
-  of PROP:ErrorHook
-    return 'PROP:ErrorHook'
   of PROP:Exists
     return 'PROP:Exists'
   of PROP:Explain
@@ -1075,7 +1074,9 @@ DriverBaseClass.InterpretProperty  Procedure(long pProperty)
   of PROP:ServerCaseInsensitive
     return 'PROP:ServerCaseInsensitive'
   of Prop:Size
-    return 'Prop:Size'
+    return 'PROP:Size'
+  of PROP:SPReturn
+    return 'PROP:SPReturn'
   of PROP:StmtAttr
     return 'PROP:StmtAttr'
   of PROP:SQLDriver
@@ -1535,6 +1536,40 @@ x           long,Auto
   !self.value[7] = chr(80h + band(val(self.value[7]),0Fh) )
   !self.value[9] = chr(10000000b + band(val(self.value[9]),111111b) )
   Return ans
+
+!-----------------------------------------------------------------
+DriverBaseClass.RegisterErrorhook                   Procedure(*iError pError)
+x   Long,Auto
+  code
+  Loop x = 1 to self.NumErrorHooks
+    If self.ErrorHooks[x] = address(pError)
+      Return
+    End
+  End
+  If self.NumErrorHooks = DRIVER:MAXERRORHOOKS
+    ! set error
+    self.SetError(TooManyHooksErr)
+    Return
+  End
+  self.NumErrorHooks += 1
+  self.ErrorHooks[x] = address(pError)
+  Return
+
+!-----------------------------------------------------------------
+DriverBaseClass.UnregisterErrorhook                 Procedure(*iError pError)
+x   Long,Auto
+y   Long,Auto
+  code
+  Loop x = 1 to self.NumErrorHooks
+    If self.ErrorHooks[x] = address(pError)
+      Loop y = x to self.NumErrorHooks - 1
+        self.ErrorHooks[y] = self.ErrorHooks[y+1]
+      End
+      self.ErrorHooks[self.NumErrorHooks] = 0
+      self.NumErrorHooks -= 1
+      Return
+    End
+  End
 
 !-----------------------------------------------------------------
 ! takes in a string of the form a.b.c and parses it into   DBVersionMajor . DBVersionMinor .  DBVersionBuild
@@ -3948,8 +3983,6 @@ DriverBaseClass.GETPROPERTY                        Procedure(String pProperty,Lo
     Return self.GetProp:Obd()
   of Prop:NotDistinct
     Return self.GetPROP:NotDistinct()
-  of Prop:ErrorHook
-    return self.GetProp:ErrorHook()
   of PROP:Explain
     return self.GetProp:Explain()
   of PROP:FetchSize
@@ -4298,6 +4331,7 @@ DriverBaseClass.ResultToExplain  Procedure(iResultSet pResult)
 ! ie, a space separated list, sql commands start with / (isam might not),
 !  and are of the form name=value
 ! value can be anything, including TRUE or FALSE
+! special case for /WHERE - see WHERE (SQL Driver String) in Clarion help
 DriverBaseClass.SEND             PROCEDURE(STRING pMessage)
 ans  String(255),auto
   Code
@@ -4315,7 +4349,11 @@ x    Long,Auto
   str.Split(' ','"','"')
   Loop x = 1 to str.Records()
     lne.SetValue(str.GetLine(x))
-    If lne.Instring('=') = 0
+    If upper(sub(pMessage,1,7)) = '/WHERE '
+      self.SetProp:SqlFilter(sub(pMessage,8,len(clip(pMessage))))
+      self._ClearSqlFilter = true
+      return ''
+    ElsIf lne.Instring('=') = 0
       ans = self.SetDriverOption(lne.GetValue(),'')
     Else
       ans = self.SetDriverOption(lne.Before('='),lne.After('='))
@@ -4399,8 +4437,6 @@ DriverBaseClass.SETPROPERTY              Procedure(String pProperty,Long pIndex,
     self.SetPROP:Distinct(pValue)
   of PROP:NotDistinct
     self.SetPROP:NotDistinct(pValue)
-  of Prop:ErrorHook
-    self.Setprop:ErrorHook(pValue)
   of PROP:Explain
     self.SetPROP:Explain(pValue)
   of PROP:FetchSize
@@ -4649,16 +4685,6 @@ DriverBaseClass.GetProp:Database       PROCEDURE()   ! get the database name out
 DriverBaseClass.GetProp:DatabaseName        PROCEDURE()!,STRING,VIRTUAL ! Get name of database, like SQLITE or PostgreSQL or whatever
   code
   Return ''
-
-!-----------------------------------------------------------------
-DriverBaseClass.GetProp:ErrorHook         PROCEDURE()
-  code
-  Return address(self.ErrorHook)
-
-!-----------------------------------------------------------------
-DriverBaseClass.SetProp:ErrorHook         PROCEDURE(Long pValue)
-  code
-  self.Errorhook &= (pValue)
 
 !-----------------------------------------------------------------
 DriverBaseClass.GetProp:OBD           PROCEDURE()    ! Is this an Object Based Driver?
@@ -5132,7 +5158,12 @@ DriverBaseClass.DoProp:Sql            PROCEDURE()
   Return
 
 ExecuteSql  routine
-  if not self.ParmBufferX &= null then self.ParmBufferX.ParmBufferCount = 0 .
+  If not self.ParmBufferX &= null then self.ParmBufferX.ParmBufferCount = 0 .
+  If self.SqlCode.Left(5) = 'CALL ' or self.SqlCode.Left(13) = 'NORESULTCALL '  ! not good enough, but covers a few cases. No access to BIND is a limiting factor here.
+    self.SqlCode.prepend('{{')
+    self.SqlCode.append('}')
+  End
+
   self._justSet = false
   self.Paging = false
   self._ResultSetDirection = Opcode:NEXT
@@ -5361,13 +5392,16 @@ FileOne    &FILE
 FileOneObj &DriverFileClass
 Driver     String(32)
 Threaded   Byte
-Doparse    byte
-r          byte
+Doparse    Byte
+r          Byte
+x          Long,Auto
+iErr       &iError,Auto
+iErrT      &iError,Auto
   Code
 ! Point FILE and object at one another
   !self.trace('DriverFileClass.INIT')
   If self._Inited = true and pForce = false then return.
-  self.LoadLogging()
+  !self.LoadLogging()
   self.file &= pFile
   lFile = address(pFile)
   self.ClaFCB  &= (lfile)
@@ -5378,10 +5412,10 @@ r          byte
       Self.ReplaceObject(self.ClaFCB.rblock)  ! this is replacing the object assigned to the file
     End
   End
-  self.recbuf &= (self.ClaFCB.rec_buf) &':' & self.ClaFCB.rec_len
-  self.reclen = self.ClaFCB.rec_len
-  ! shadow buffer
-  self.ShadowBuffer &= New String(self.ClaFCB.rec_len)
+!  self.recbuf &= (self.ClaFCB.rec_buf) &':' & self.ClaFCB.rec_len
+!  self.reclen = self.ClaFCB.rec_len
+!  ! shadow buffer
+!  self.ShadowBuffer &= New String(self.ClaFCB.rec_len)
 
   ! if this is the first time the object has been encountered then create unthreaded shared property space
   threaded = choose(band(self.ClaFCB.fil_attr,FILTHRD) > 0, true, false)
@@ -5393,18 +5427,42 @@ r          byte
     FileOneObj &= FileOne{prop:object}               ! this triggers the Instance on thread 1 to get INITialised if it hasn't been already.
     do checkShared                                   ! but even then it comes through here, because we're not on thread 1 now
     self.SharedProperties &= FileOneObj.SharedProperties
+    ! there is a window for the shared properties to be null, if multiple threads start similtaneously, and
+    ! there has been no access to the FILE before. It likely means some other thread is already initing
+    ! the thread 1 value. So just sleep for a bit and wait for that to catch up.
+    If self.SharedProperties &= null
+      osSleep(250)
+      self.SharedProperties &= FileOneObj.SharedProperties
+    End
   End
   ASSERT(not self.SharedProperties &= null,'In DriverFileClass.Init, SharedProperties is null. Thread ' & thread())
 
+  self.recbuf &= (self.ClaFCB.rec_buf) &':' & self.ClaFCB.rec_len
+  self.reclen = self.ClaFCB.rec_len
+
+  ! moved down here after shared properties
+
+  ! shadow buffer
+  self.ShadowBuffer &= New String(self.ClaFCB.rec_len)
+
 ! Prime object properties from pFILE
   self._UpdateFileStrings()
+
+  self.LoadLogging()
 
   compile('!***',_C100_=1)
   ! first apply System-wide driver string for all files of this driver
   self.Send(System{'Driver:' & self.GetPROP:Driver()})       ! available from Clarion 10.11975 --- October 27, 2015
   ! attach systemwide, unthreaded Error Hook
-  If system{'Driver:ErrorHook'}
-    self.ErrorHook &= (system{'Driver:ErrorHook:' & self.GetPROP:Driver()})
+  If system{'Driver:ErrorHook:' & self.GetPROP:Driver()}
+    self.TempStr.SetValue(system{'Driver:ErrorHook:' & self.GetPROP:Driver()})
+    self.TempStr.Split(' ')
+    self.TempStr.RemoveLines()
+    Loop x = 1 to self.TempStr.Records()
+      iErr &= (left(self.TempStr.GetLine(x)))  ! this is the pointer to the interface, but on thread 1.
+      iErrT &= Instance(iErr,thread())
+      self.RegisterErrorhook(iErrT)
+    End
   End
   !***
   ! Then apply the driver string for this table
@@ -5522,6 +5580,7 @@ cs cString(size(pName)+1),auto
 !-----------------------------------------------------------------
 ! typically this is just the column name in the database, however sometimes it's a fully qualified name, ie self.FullPathName & '.' & ColumnName
 ! Adjusts for this and only compares to the Column Name part.
+! It's also possible that the name wll be already safe (as in TranslateReserved) so handle that too.
 DriverFileClass._WithFieldNamed  Procedure(*cString pName)
 node  &FieldGroupType,Auto
 cstr  Cstring(size(pName)),Auto
@@ -5533,6 +5592,11 @@ l     Long,Auto
   l = len(self.FullPathName)
   If len(cstr) > l+1 and cstr[1 : l+1] = upper(self.FullPathName) & '.'
     cstr = sub(cstr,l+2,255)
+  End
+  If len(cstr) = 0 then return Driver:Notok.
+  case cstr[1]
+  of '[' orof '"' orof '`' ! name has been made safe. Remove that for the comparison.
+    cstr = sub(cstr,2,len(cstr)-2)
   End
   If len(cstr) = 0 then return Driver:Notok.
   Loop x = 1 to self.SharedProperties.FieldList.nodes
@@ -9294,6 +9358,8 @@ count             Long!,auto
       If self._WithField(y) = Driver:ok
         index = self.fields.Index
         ProjectList.Append(self.fields.column,,',')
+      else
+        self.trace('ImportCSV: Column in input file not found by number, and so ignored column=' & y)
       End
       If index and self._ProjectField[index] = false
         Cycle
@@ -10581,6 +10647,7 @@ DriverFileClass._SET             PROCEDURE(Byte pSetMethod, BigInt pPointer,Key 
 DriverFileClass.SET              PROCEDURE()
   Code
   self._SearchExpression = ''                                       ! Do NOT move this into _Set.
+  If self._ClearSqlFilter then  self._ClearSqlFilter = false ; self.SetPROP:SQLFilter('').
   self._Set(driver:SetFile,driver:SetBoundary,nullkey,nullkey)
   Return
 
@@ -10588,6 +10655,7 @@ DriverFileClass.SET              PROCEDURE()
 DriverFileClass.SET              PROCEDURE(Byte pSpacer=0,KEY pKey)
   Code
   self._SearchExpression = ''
+  If self._ClearSqlFilter then  self._ClearSqlFilter = false ; self.SetPROP:SQLFilter('').
   self._Set(driver:SetFile,driver:SetBoundary,pKey,nullkey)
   Return
 
@@ -10595,6 +10663,7 @@ DriverFileClass.SET              PROCEDURE(Byte pSpacer=0,KEY pKey)
 DriverFileClass.SET              PROCEDURE(BIGINT pSetPointer)
   Code
   self._SearchExpression = ''
+  If self._ClearSqlFilter then  self._ClearSqlFilter = false ; self.SetPROP:SQLFilter('').
   self._Set(driver:SetFile,pSetPointer,nullkey,nullkey)
   Return
 
@@ -10602,6 +10671,7 @@ DriverFileClass.SET              PROCEDURE(BIGINT pSetPointer)
 DriverFileClass.SET              PROCEDURE(KEY pKey)
   Code
   self._SearchExpression = ''
+  If self._ClearSqlFilter then  self._ClearSqlFilter = false ; self.SetPROP:SQLFilter('').
   self._Set(driver:SetKey,0,pKey,nullkey)
   Return
 
@@ -10609,6 +10679,7 @@ DriverFileClass.SET              PROCEDURE(KEY pKey)
 DriverFileClass.SET              PROCEDURE(KEY pKey, KEY pStart)
   Code
   self._SearchExpression = ''
+  If self._ClearSqlFilter then  self._ClearSqlFilter = false ; self.SetPROP:SQLFilter('').
   self._Set(driver:SetKeyKey,0,pKey,pStart)
   Return
 
@@ -10616,6 +10687,7 @@ DriverFileClass.SET              PROCEDURE(KEY pKey, KEY pStart)
 DriverFileClass.SET              PROCEDURE(KEY pKey, BIGINT pSetPointer)
   Code
   self._SearchExpression = ''
+  If self._ClearSqlFilter then  self._ClearSqlFilter = false ; self.SetPROP:SQLFilter('').
   self._Set(driver:SetKey,pSetPointer,pKey,nullkey)
   Return
 
@@ -10623,6 +10695,7 @@ DriverFileClass.SET              PROCEDURE(KEY pKey, BIGINT pSetPointer)
 DriverFileClass.SET              PROCEDURE(KEY pKey, KEY pStart, BIGINT pSetPointer)
   Code
   self._SearchExpression = ''
+  If self._ClearSqlFilter then  self._ClearSqlFilter = false ; self.SetPROP:SQLFilter('').
   self._Set(driver:SetKeyKey,pSetPointer,pKey,pStart)
   Return
 
@@ -11456,6 +11529,8 @@ DriverFileClass.GetProperty      PROCEDURE(String pProperty,Long pIndex=0)
     return self.GetProp:RelationsOff()
   of Prop:Size
     return self.GetProp:Size(pIndex)
+  of PROP:SPReturn
+    return self.GetProp:SPReturn()
   of PROP:StmtAttr           !  ! read or set the ODBC Statement Attribute
     return self.GetProp:StmtAttr()
   of PROP:SQLDriver          !  ! '1' = Driver is SQL aware
@@ -12420,6 +12495,11 @@ DriverFileClass.GetProp:Size               PROCEDURE(Long pIndex)
   Return 0
 
 !-----------------------------------------------------------------
+DriverFileClass.GetProp:SPReturn               PROCEDURE()
+  code
+  return self.SPReturn
+
+!-----------------------------------------------------------------
 DriverFileClass.SetPROP:ServerAutoInc      PROCEDURE(Long pIndex,BIGINT pValue)
   code
   If pIndex = 0
@@ -13286,18 +13366,18 @@ DriverFileSQLClass.DESTRUCT                  PROCEDURE()
   Dispose(self.opt:LogMessage)
   Return
 
-!!-----------------------------------------------------------------
-!DriverFileSQLClass.INIT            PROCEDURE(FILE pFile, Long pForce=false, Long pRblock=true)!,DERIVED
-!  code
-!  parent.Init(pFile,pForce,pRblock)
-!  Return
-
 !-----------------------------------------------------------------
 DriverFileSQLClass.SetError            PROCEDURE(Long pError)
+iErr  &iError
+x  Long,Auto
   Code
   parent.SetError(pError)
-  If pError <> NoError and not self.ErrorHook &= NULL
-    Self.ErrorHook.TakeErrorFile(self)
+  If pError = NoError then Return.
+  Loop x = 1 to self.NumErrorHooks
+    iErr &= (self.ErrorHooks[x])
+    !self.trace('sending error to handler ' & x & ' iErr=' & self.ErrorHooks[x])
+    iErr.TakeErrorFile(self)
+    If Errorcode() = NoError then break.
   End
   Return
 
@@ -17075,10 +17155,16 @@ DriverViewSQLClass.Destruct           Procedure()
 
 !-----------------------------------------------------------------
 DriverViewSQLClass.SetError            PROCEDURE(Long pError)
+iErr  &iError
+x     Long,Auto
   Code
   parent.SetError(pError)
-  If pError <> NoError and not self.ErrorHook &= NULL
-    Self.ErrorHook.TakeErrorView(self)
+  If pError = NoError then Return.
+
+  Loop x = 1 to self.NumErrorHooks
+    iErr &= (self.ErrorHooks[x])
+    iErr.TakeErrorView(self)
+    If Errorcode() = NoError then break.
   End
   Return
 

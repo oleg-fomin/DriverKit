@@ -10,7 +10,7 @@
 ! For new Opcodes and FieldTypes see Driver.Inc                                                 !
 !------------------------------------------------------------------------------------------------
 
-Driver:Version  Equate('1.39')
+Driver:Version  Equate('1.40')
 
 !Region ----------  Equates ----------
 ! BIGINT: use this for now as a 52 bit integer. In later clarion versions could become a int64
@@ -110,6 +110,8 @@ BindField   Procedure(FILE pFile,String pName, *Time pTime),name('BINDtime'),Dll
 Bytes64     Procedure(FILE pFile),BIGINT,name('BYTES64'),Dll(dll_mode)
 CallOut     Procedure(FILE pFile,String pStoredProcedure,*? pParm1,<*? pParm2>,<*? pParm3>,<*? pParm4>,<*? pParm5>,<*? pParm6>,<*? pParm7>,<*? pParm8>,<*? pParm9>,<*? pParm10>,<*? pParm11>,<*? pParm12>,<*? pParm13>,<*? pParm14>,<*? pParm15>,<*? pParm16>,<*? pParm17>,<*? pParm18>,<*? pParm19>,<*? pParm20>),name('CALLOUT'),Dll(dll_mode)
 Call        Procedure(FILE pFile,String pStoredProcedure,<? pParm1>,<? pParm2>,<? pParm3>,<? pParm4>,<? pParm5>,<? pParm6>,<? pParm7>,<? pParm8>,<? pParm9>,<? pParm10>,<? pParm11>,<? pParm12>,<? pParm13>,<? pParm14>,<? pParm15>,<? pParm16>,<? pParm17>,<? pParm18>,<? pParm19>,<? pParm20>),name('CALLspVal'),Dll(dll_mode)
+Callback    Procedure(FILE pFile,*iError pError, Long pFlag=False),name('CallBackFile'),Dll(dll_mode)
+Callback    Procedure(VIEW pView,*iError pError, Long pFlag=False),name('CallBackView'),Dll(dll_mode)
 Claim       Procedure(KEY pKey, ? pFIELD, ? pValue, ? pNewValue),name('CLAIM1a'),Dll(dll_mode)
 Claim       Procedure(KEY pKey, ? pFIELD, ? pValue),name('CLAIM2a'),Dll(dll_mode)
 Claim       Procedure(FILE pFile, STRING pOrder, STRING pFilter, ? pFIELD, ? pNewValue),name('CLAIM1b'),Dll(dll_mode)
@@ -155,20 +157,20 @@ LoggingOn   Procedure(FILE pFILE,<String pFileName>,Long pOptions=0),name('LOGGI
 LoggingOff  Procedure(FILE pFILE),name('LOGGINGOFF'),Dll(dll_mode)
 LoggingOn   Procedure(VIEW pVIEW,<String pFileName>,Long pOptions=0),name('LOGGINGONview'),Dll(dll_mode)
 LoggingOff  Procedure(VIEW pView),name('LOGGINGOFFview'),Dll(dll_mode)
-LogoutConnection   Procedure(FILE pFile),name('LOGOUTconn'),Dll(dll_mode)
-Merge       Procedure(FILE pFile,FILE pDestination, Long pOptions=0),name('MERGE'),Dll(dll_mode)
-Merge       Procedure(FILE pFile,STRING pDestination, Long pOptions=0),name('MERGEname'),Dll(dll_mode)
-Pointer64   Procedure(FILE pFile),BIGINT,name('POINTER64'),Dll(dll_mode)
-ProjectField   Procedure(VIEW pView,String pExpression,String pAs),name('PROJECTFIELD'),Dll(dll_mode)
-ProjectField   Procedure(VIEW pView,FILE pFile,Long pIndex),name('PROJECTFIELDindex'),Dll(dll_mode)
-ProjectField   Procedure(VIEW pView,*? pField),name('PROJECTFIELDlabel'),Dll(dll_mode)
-Put64       Procedure(FILE pFile,BIGINT pFilePointer),name('PUT64'),Dll(dll_mode)
-Put64       Procedure(FILE pFile,BIGINT pFilePointer, LONG pLength),name('PUT64len'),Dll(dll_mode)
-Records     Procedure(FILE pFile,String pFilter),BIGINT,name('RECORDSFilter'),Dll(dll_mode)
-Records     Procedure(FILE pFile,*? pField1, <*? pField2>, <*? pField3>, <*? pField4>, <*? pField5>),BIGINT,name('RECORDSfield'),Dll(dll_mode)
-Records64   Procedure(FILE pFile),BIGINT,name('RECORDS64'),Dll(dll_mode)
-Records64   Procedure(VIEW pView),BIGINT,name('RECORDS64View'),Dll(dll_mode)
-Records     Procedure(VIEW pView, Long pNumber),BIGINT,name('RECORDS64ViewNumber'),Dll(dll_mode)
+LogoutConnection  Procedure(FILE pFile),name('LOGOUTconn'),Dll(dll_mode)
+Merge             Procedure(FILE pFile,FILE pDestination, Long pOptions=0),name('MERGE'),Dll(dll_mode)
+Merge             Procedure(FILE pFile,STRING pDestination, Long pOptions=0),name('MERGEname'),Dll(dll_mode)
+Pointer64         Procedure(FILE pFile),BIGINT,name('POINTER64'),Dll(dll_mode)
+ProjectField      Procedure(VIEW pView,String pExpression,String pAs),name('PROJECTFIELD'),Dll(dll_mode)
+ProjectField      Procedure(VIEW pView,FILE pFile,Long pIndex),name('PROJECTFIELDindex'),Dll(dll_mode)
+ProjectField      Procedure(VIEW pView,*? pField),name('PROJECTFIELDlabel'),Dll(dll_mode)
+Put64             Procedure(FILE pFile,BIGINT pFilePointer),name('PUT64'),Dll(dll_mode)
+Put64             Procedure(FILE pFile,BIGINT pFilePointer, LONG pLength),name('PUT64len'),Dll(dll_mode)
+Records           Procedure(FILE pFile,String pFilter),BIGINT,name('RECORDSFilter'),Dll(dll_mode)
+Records           Procedure(FILE pFile,*? pField1, <*? pField2>, <*? pField3>, <*? pField4>, <*? pField5>),BIGINT,name('RECORDSfield'),Dll(dll_mode)
+Records64         Procedure(FILE pFile),BIGINT,name('RECORDS64'),Dll(dll_mode)
+Records64         Procedure(VIEW pView),BIGINT,name('RECORDS64View'),Dll(dll_mode)
+Records           Procedure(VIEW pView, Long pNumber),BIGINT,name('RECORDS64ViewNumber'),Dll(dll_mode)
 RemoveField Procedure(FILE pFile,String pName),name('REMOVEfield'),Dll(dll_mode)
 RemoveKey   Procedure(FILE pFile,String pName),name('REMOVEkeyname'),Dll(dll_mode)
 RemoveKey   Procedure(KEY pKey),name('REMOVEkey'),Dll(dll_mode)
@@ -212,6 +214,9 @@ Update      Procedure(File pFile,String pFilter,*? pField1,String pValue1,<*? pF
 Update      Procedure(Key pKey,*? pField1,String pValue1,<*? pField2>,<String pValue2>,<*? pField3>,<String pValue3>,<*? pField4>,<String pValue4>,<*? pField5>,<String pValue5>,<*? pField6>,<String pValue6>,<*? pField7>,<String pValue7>,<*? pField8>,<String pValue8>,<*? pField9>,<String pValue9>,<*? pField10>,<String pValue10>),Name('UPDATEKey'),Dll(dll_mode)
 Upsert      Procedure(File pFile),Name('UPSERT'),Dll(dll_mode)
     END
+    Module('rtl')
+        ClearError(),NAME('Cla$ClearError'),Dll(dll_mode)
+    End
   END
 !EndRegion: Map
 
@@ -305,7 +310,7 @@ PROP:CollationDb        Equate(744Ch)
 Prop:DatePicture        Equate(744Dh) ! used in EXPORT and IMPORT commands
 Prop:TimePicture        Equate(744Eh) ! used in EXPORT and IMPORT commands
 PROP:InStream           Equate(744Fh)
-Prop:ErrorHook          Equate(7450h)
+PROP:SPReturn           Equate(7450h)
 
 !EndRegion: Properties
 !Region ----------  Errors ----------
@@ -342,5 +347,6 @@ LoginTimeoutErr         Equate(144)   !  "Login Timeout Expired Error"
 MissingDatabaseErr      Equate(145)   !  "The Database does not exist on the server"
 BadLoginErr             Equate(146)   !  "The User or Password is incorrect"
 ConnectionFailureErr    Equate(147)   !  "Connection Failure"
+TooManyHooksErr         Equate(148)   !  "Too many hooks"
 !EndRegion: Errors
 !------------------------------------------------------------------------------------------------

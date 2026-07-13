@@ -371,32 +371,6 @@ obj      &DriverFileClass
   obj.CreateDB(pDatabaseName,pOptions)
   Return
 
-!!------------------------------------------------------------------------------------------------
-!CREATEFIELD             Procedure(FILE pFile,*? pField1)
-!obj      &DriverFileClass
-!  code
-!  obj &= pFile{prop:object}
-!  If obj &= null
-!    ClaSetError(NoDriverSupport)
-!    Return
-!  End
-!  If obj._logClarion then obj.Log('[CLAR]CREATEFIELD(field)').
-!  obj.CreateField(pField1)
-!  Return
-!
-!!------------------------------------------------------------------------------------------------
-!CREATEFIELD             Procedure(FILE pFile,String pName, String pType, String pConstraint)
-!obj      &DriverFileClass
-!  code
-!  obj &= pFile{prop:object}
-!  If obj &= null
-!    ClaSetError(NoDriverSupport)
-!    Return
-!  End
-!  If obj._logClarion then obj.Log('[CLAR]CREATEFIELD('&clip(pName)& ',' & clip(pType) & ',' & clip(pConstraint) & ' )').
-!  obj.CreateField(pName,pType,pConstraint)
-!  Return
-
 !------------------------------------------------------------------------------------------------
 CREATEKEY               Procedure(KEY pKey)
 obj      &DriverFileClass
@@ -995,6 +969,40 @@ obj      &DriverViewClass
   End
   If obj._logClarion then obj.Log('[CLAR]RECORDS64()').
   Return obj.Records()
+
+!------------------------------------------------------------------------------------------------
+CALLBACK           Procedure(FILE pFile,*iError pError, Long pFlag=False)
+obj      &DriverFileClass
+  Code
+  obj &= pFile{prop:object}
+  If obj &= null
+    ClaSetError(NoDriverSupport)
+    Return
+  End
+  If obj._logClarion then obj.Log('[CLAR]CALLBACK(iError,' & pFlag & ')') .
+  If pFlag = false
+    obj.RegisterErrorHook(pError)
+  Else
+    obj.UnregisterErrorHook(pError)
+  End
+  Return
+
+!------------------------------------------------------------------------------------------------
+CALLBACK         Procedure(VIEW pView,*iError pError, Long pFlag=False)
+obj      &DriverViewClass
+  Code
+  obj &= pView{prop:object}
+  If obj &= null
+    ClaSetError(NoDriverSupport)
+    Return
+  End
+  If obj._logClarion then obj.Log('[CLAR]CALLBACK(iError,' & pFlag & ')') .
+  If pFlag = false
+    obj.RegisterErrorHook(pError)
+  Else
+    obj.UnregisterErrorHook(pError)
+  End
+  Return
 
 !------------------------------------------------------------------------------------------------
 REOPEN             Procedure(FILE pFile,Long pNewMode)

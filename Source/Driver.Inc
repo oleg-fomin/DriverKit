@@ -165,7 +165,8 @@ token:multiply      equate(token:operator & '0004 ')
 token:mod           equate(token:operator & '0005 ')
 token:comma         equate(token:operator & '0006 ')
 token:power         equate(token:operator & '0007 ')
-token:concat        equate(token:operator & '0008 ')
+token:concat        equate(token:operator & '0008 ')  ! &
+token:reference     equate(token:operator & '0008 ')  ! also &
 token:asc           equate(token:operator & '0009 ')
 token:desc          equate(token:operator & '0010 ')
 token:as            equate(token:operator & '0011 ')
